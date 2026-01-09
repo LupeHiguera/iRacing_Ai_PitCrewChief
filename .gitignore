@@ -205,3 +205,19 @@ cython_debug/
 marimo/_static/
 marimo/_lsp/
 __marimo__/
+
+# IDE
+.idea/
+
+# AI agent instructions (not for public)
+CLAUDE.md
+Claude.md
+suggestions.md
+
+# Data directories (large files)
+data/sessions/
+data/synthetic/
+models/
+
+# Misc
+nul

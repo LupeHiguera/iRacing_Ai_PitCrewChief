@@ -1,0 +1,19 @@
+# Core dependencies
+pyirsdk
+pydantic
+aiohttp
+sounddevice
+soundfile
+python-dotenv
+
+# LLM and fine-tuning
+anthropic
+transformers
+peft
+bitsandbytes
+accelerate
+datasets
+
+# Testing
+pytest
+pytest-asyncio
