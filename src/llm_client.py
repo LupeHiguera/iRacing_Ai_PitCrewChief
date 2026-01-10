@@ -9,8 +9,13 @@ from typing import Optional
 
 import aiohttp
 
+from typing import TYPE_CHECKING
+
 from .telemetry import TelemetrySnapshot
 from .strategy import StrategyState, Urgency
+
+if TYPE_CHECKING:
+    from .event_detector import RaceEvent
 
 
 @dataclass
@@ -71,10 +76,13 @@ class LMStudioClient:
             return LLMResponse(text=text, latency_ms=latency_ms)
 
         except asyncio.TimeoutError:
+            print(f"[LLM] Timeout after {self.timeout}s")
             return None
-        except aiohttp.ClientError:
+        except aiohttp.ClientError as e:
+            print(f"[LLM] Connection error: {e}")
             return None
-        except Exception:
+        except Exception as e:
+            print(f"[LLM] Unexpected error: {e}")
             return None
 
     async def _make_request(self, prompt: str) -> dict:
@@ -111,6 +119,7 @@ class LMStudioClient:
         self,
         state: StrategyState,
         snapshot: TelemetrySnapshot,
+        event: Optional["RaceEvent"] = None,
     ) -> str:
         """
         Format telemetry and strategy state into a prompt for the LLM.
@@ -118,6 +127,7 @@ class LMStudioClient:
         Args:
             state: Current strategy state.
             snapshot: Current telemetry snapshot.
+            event: Optional event that triggered this call.
 
         Returns:
             Formatted prompt string.
@@ -128,6 +138,21 @@ class LMStudioClient:
             f"Tires: {state.worst_tire_corner} at {state.worst_tire_wear:.0f}% worn",
             f"Session: {snapshot.session_laps_remain} laps to go",
         ]
+
+        # Add gap info if available
+        if snapshot.gap_behind_sec is not None:
+            lines.append(f"Gap behind: {snapshot.gap_behind_sec:.1f}s")
+        if snapshot.gap_ahead_sec is not None:
+            lines.append(f"Gap ahead: {snapshot.gap_ahead_sec:.1f}s")
+
+        # Add event context if provided
+        if event:
+            lines.append(f"EVENT: {event.message}")
+            # Add event-specific context
+            if event.data:
+                for key, value in event.data.items():
+                    if key not in ["gap_behind", "gap_ahead"]:  # Avoid duplicates
+                        lines.append(f"  {key}: {value}")
 
         # Add urgency context
         if state.urgency == Urgency.CRITICAL:

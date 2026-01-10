@@ -42,6 +42,9 @@ class StrategyCalculator:
     # Number of laps to use for rolling average
     ROLLING_WINDOW = 5
 
+    # Minimum fuel usage to count as a valid lap (filters out-laps, in-laps, cautions)
+    MIN_FUEL_PER_LAP = 0.5
+
     def __init__(
         self,
         fuel_warning_laps: float = 5.0,
@@ -57,7 +60,7 @@ class StrategyCalculator:
         # Fuel tracking
         self._fuel_usage_history: deque[float] = deque(maxlen=self.ROLLING_WINDOW)
         self._last_lap: Optional[int] = None
-        self._last_fuel: Optional[float] = None
+        self._fuel_at_lap_start: Optional[float] = None  # Fuel level when current lap started
 
     def update(self, snapshot: TelemetrySnapshot) -> StrategyState:
         """
@@ -107,22 +110,29 @@ class StrategyCalculator:
         """Reset strategy calculator (e.g., for new session)."""
         self._fuel_usage_history.clear()
         self._last_lap = None
-        self._last_fuel = None
+        self._fuel_at_lap_start = None
 
     def _update_fuel_tracking(self, snapshot: TelemetrySnapshot) -> None:
         """Track fuel usage when a new lap is completed."""
         current_lap = snapshot.lap
         current_fuel = snapshot.fuel_level
 
-        if self._last_lap is not None and self._last_fuel is not None:
-            # Check if we completed a lap
+        if self._last_lap is not None:
+            # Check if we completed a lap (lap number increased)
             if current_lap > self._last_lap:
-                fuel_used = self._last_fuel - current_fuel
-                if fuel_used > 0:
-                    self._fuel_usage_history.append(fuel_used)
+                # Calculate fuel used during the lap that just ended
+                if self._fuel_at_lap_start is not None:
+                    fuel_used = self._fuel_at_lap_start - current_fuel
+                    # Only count valid laps (filters out-laps, in-laps, cautions)
+                    if fuel_used >= self.MIN_FUEL_PER_LAP:
+                        self._fuel_usage_history.append(fuel_used)
+                # New lap started - record fuel at start of this lap
+                self._fuel_at_lap_start = current_fuel
+        else:
+            # First sample - record fuel at start of current lap
+            self._fuel_at_lap_start = current_fuel
 
         self._last_lap = current_lap
-        self._last_fuel = current_fuel
 
     def _calculate_fuel_per_lap(self) -> float:
         """Calculate average fuel usage per lap from history."""

@@ -15,6 +15,8 @@ from .strategy import StrategyCalculator, StrategyState, Urgency
 from .llm_client import LMStudioClient
 from .tts import PiperTTS
 from .logger import SessionLogger
+from .overlay_server import OverlayServer
+from .event_detector import EventDetector, RaceEvent, EventPriority
 
 
 class StrategyEngine:
@@ -30,6 +32,8 @@ class StrategyEngine:
         self._llm: Optional[LMStudioClient] = None
         self._tts: Optional[PiperTTS] = None
         self._logger: Optional[SessionLogger] = None
+        self._overlay: Optional[OverlayServer] = None
+        self._event_detector: Optional[EventDetector] = None
 
         # State tracking
         self._last_lap: int = 0
@@ -61,6 +65,17 @@ class StrategyEngine:
         if self._config.log_sessions:
             self._logger = SessionLogger(log_dir=str(self._config.session_log_dir))
 
+        # Initialize event detector
+        self._event_detector = EventDetector(self._config)
+
+        # Start overlay server
+        if self._config.overlay_enabled:
+            self._overlay = OverlayServer(
+                host=self._config.overlay_host,
+                port=self._config.overlay_port,
+            )
+            await self._overlay.start()
+
         # Start TTS worker
         await self._tts.start()
 
@@ -80,6 +95,10 @@ class StrategyEngine:
         # Stop TTS
         if self._tts:
             await self._tts.stop()
+
+        # Stop overlay server
+        if self._overlay:
+            await self._overlay.stop()
 
         # Close LLM client
         if self._llm:
@@ -105,12 +124,18 @@ class StrategyEngine:
 
         print("Connected to iRacing!")
 
+        # Get track and car info
+        track = self._telemetry.get_track_name()
+        car = self._telemetry.get_car_name()
+        print(f"Track: {track} | Car: {car}")
+
         # Start logging session
         if self._logger:
-            track = self._telemetry.get_track_name()
-            car = self._telemetry.get_car_name()
-            print(f"Track: {track} | Car: {car}")
             self._logger.start_session(track, car)
+
+        # Set overlay session info
+        if self._overlay:
+            self._overlay.set_session_info(track, car, "Race")
 
         # Announce startup
         await self._speak("Race strategist online. Good luck out there.")
@@ -149,15 +174,30 @@ class StrategyEngine:
                 # Log telemetry
                 self._log_telemetry(snapshot, state)
 
+                # Broadcast to overlay
+                if self._overlay:
+                    await self._overlay.broadcast_telemetry(snapshot, state)
+
                 # Debug: Show lap changes
                 if snapshot.lap != self._last_lap:
                     print(f"[DEBUG] Lap {snapshot.lap} completed | Fuel: {state.laps_of_fuel:.1f} laps | "
-                          f"Urgency: {state.urgency.name} | Next callout at lap {((snapshot.lap // self._config.periodic_update_laps) + 1) * self._config.periodic_update_laps}")
+                          f"Urgency: {state.urgency.name}")
 
-                # Check if we should trigger LLM
-                if self._should_trigger_llm(snapshot, state, self._last_lap):
-                    print(f"[DEBUG] Triggering LLM call - Lap: {snapshot.lap}, Urgency: {state.urgency.name}")
-                    await self._handle_llm_call(snapshot, state)
+                # Detect events
+                events = self._event_detector.detect_events(snapshot, state)
+
+                # Process highest priority event (if any)
+                if events:
+                    top_event = events[0]  # Already sorted by priority
+
+                    # Check global cooldown (except for critical events)
+                    current_time = time.time()
+                    cooldown_ok = (current_time - self._last_llm_call_time) >= self._config.llm_cooldown_sec
+                    is_critical = top_event.priority == EventPriority.CRITICAL
+
+                    if cooldown_ok or is_critical:
+                        print(f"[DEBUG] Event detected: {top_event.event_type.name} - {top_event.message}")
+                        await self._handle_event(snapshot, state, top_event)
 
                 # Update state tracking
                 self._last_lap = snapshot.lap
@@ -184,37 +224,43 @@ class StrategyEngine:
             await asyncio.sleep(delay)
         return False
 
-    def _should_trigger_llm(
+    # === LEGACY TRIGGER LOGIC ===
+    # Kept for reference/fallback. Now replaced by EventDetector.detect_events()
+    # Remove once EventDetector is proven stable.
+
+    def _get_trigger_reason(
         self,
         snapshot: TelemetrySnapshot,
         state: StrategyState,
         last_lap: int,
-        ignore_cooldown: bool = False,
-    ) -> bool:
-        """Determine if we should call the LLM."""
+    ) -> Optional[str]:
+        """
+        [LEGACY] Determine if we should call the LLM and why.
+
+        Returns trigger reason string if should trigger, None otherwise.
+        """
         current_time = time.time()
-        cooldown_ok = (
-            ignore_cooldown or
-            (current_time - self._last_llm_call_time) >= self._config.llm_cooldown_sec
-        )
+        cooldown_ok = (current_time - self._last_llm_call_time) >= self._config.llm_cooldown_sec
 
         # Critical always triggers (bypasses cooldown)
         if state.urgency == Urgency.CRITICAL and self._last_urgency != Urgency.CRITICAL:
-            return True
+            reason = state.pit_reason or "Critical situation"
+            return f"CRITICAL: {reason}"
 
         # Check cooldown for non-critical
         if not cooldown_ok:
-            return False
+            return None
 
         # Urgency escalation
         if self._urgency_escalated(state.urgency):
-            return True
+            reason = state.pit_reason or f"Urgency → {state.urgency.name}"
+            return f"Escalation: {reason}"
 
         # Periodic update on lap completion
         if snapshot.lap > last_lap and snapshot.lap % self._config.periodic_update_laps == 0:
-            return True
+            return f"Lap {snapshot.lap} update (every {self._config.periodic_update_laps} laps)"
 
-        return False
+        return None
 
     def _urgency_escalated(self, new_urgency: Urgency) -> bool:
         """Check if urgency escalated from last state."""
@@ -226,13 +272,61 @@ class StrategyEngine:
         }
         return priority[new_urgency] > priority[self._last_urgency]
 
+    async def _handle_event(
+        self,
+        snapshot: TelemetrySnapshot,
+        state: StrategyState,
+        event: RaceEvent,
+    ) -> None:
+        """Handle a detected event - call LLM or use fallback."""
+        # Build prompt with event context
+        prompt = self._llm.format_telemetry_prompt(state, snapshot, event)
+
+        # Broadcast "thinking" state to overlay
+        if self._overlay:
+            await self._overlay.broadcast_ai_thinking(prompt)
+
+        # Try LLM
+        response = await self._llm.generate(prompt)
+
+        if response:
+            message = response.text
+            latency = response.latency_ms
+            await self._log_llm_call(prompt, message, latency)
+        else:
+            # Fallback to event's built-in message
+            message = event.message
+            latency = 0
+            await self._log_llm_call(prompt, f"[FALLBACK] {message}", 0)
+
+        # Broadcast to overlay
+        if self._overlay:
+            await self._overlay.broadcast_ai_message(
+                message=message,
+                trigger_reason=f"{event.event_type.name}",
+                latency_ms=latency,
+                urgency=state.urgency,
+                prompt=prompt,
+            )
+
+        # Speak the message (priority for critical events)
+        priority = event.priority == EventPriority.CRITICAL
+        await self._speak(message, priority=priority)
+
+        self._last_llm_call_time = time.time()
+
     async def _handle_llm_call(
         self,
         snapshot: TelemetrySnapshot,
         state: StrategyState,
+        trigger_reason: str = "periodic",
     ) -> None:
-        """Handle an LLM call with fallback."""
+        """[LEGACY] Handle an LLM call with fallback. Use _handle_event() instead."""
         prompt = self._llm.format_telemetry_prompt(state, snapshot)
+
+        # Broadcast "thinking" state to overlay
+        if self._overlay:
+            await self._overlay.broadcast_ai_thinking(prompt)
 
         # Try LLM
         response = await self._llm.generate(prompt)
@@ -243,8 +337,19 @@ class StrategyEngine:
             await self._log_llm_call(prompt, message, latency)
         else:
             # Fallback to deterministic message
-            message = self._get_fallback_message(state)
+            message = self._get_fallback_message(state, snapshot)
+            latency = 0
             await self._log_llm_call(prompt, f"[FALLBACK] {message}", 0)
+
+        # Broadcast to overlay
+        if self._overlay:
+            await self._overlay.broadcast_ai_message(
+                message=message,
+                trigger_reason=trigger_reason,
+                latency_ms=latency,
+                urgency=state.urgency,
+                prompt=prompt,
+            )
 
         # Speak the message
         priority = state.urgency == Urgency.CRITICAL
@@ -252,8 +357,10 @@ class StrategyEngine:
 
         self._last_llm_call_time = time.time()
 
-    def _get_fallback_message(self, state: StrategyState) -> str:
+    def _get_fallback_message(self, state: StrategyState, snapshot: TelemetrySnapshot) -> str:
         """Get a deterministic fallback message when LLM fails."""
+        position = snapshot.position
+
         if state.urgency == Urgency.CRITICAL:
             if state.pit_reason and "fuel" in state.pit_reason.lower():
                 return f"Box now! Fuel critical, {state.laps_of_fuel:.1f} laps remaining."
@@ -264,14 +371,15 @@ class StrategyEngine:
 
         elif state.urgency == Urgency.WARNING:
             if state.pit_reason and "fuel" in state.pit_reason.lower():
-                return f"Fuel getting low. {state.laps_of_fuel:.1f} laps remaining. Plan your pit stop."
+                return f"Fuel getting low. P{position}, {state.laps_of_fuel:.1f} laps remaining."
             elif state.pit_reason and "tire" in state.pit_reason.lower():
-                return f"Tires wearing. {state.worst_tire_corner} at {state.worst_tire_wear:.0f}%. Consider pitting."
+                return f"Tires wearing. {state.worst_tire_corner} at {state.worst_tire_wear:.0f}%. P{position}."
             else:
-                return "Warning: Consider pitting soon."
+                return f"Warning: Consider pitting soon. P{position}."
 
         else:
-            return f"Lap update. P{state.pit_window}, {state.laps_of_fuel:.1f} laps of fuel."
+            # Normal lap update with position and fuel
+            return f"Lap {snapshot.lap} complete. P{position}, {state.laps_of_fuel:.1f} laps of fuel."
 
     async def _speak(self, text: str, priority: bool = False) -> None:
         """Send text to TTS."""

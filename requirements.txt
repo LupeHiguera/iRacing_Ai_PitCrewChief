@@ -6,6 +6,11 @@ sounddevice
 soundfile
 python-dotenv
 
+# Overlay server
+fastapi
+uvicorn[standard]
+websockets
+
 # LLM and fine-tuning
 anthropic
 transformers

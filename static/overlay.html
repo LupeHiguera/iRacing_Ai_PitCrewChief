@@ -1,0 +1,903 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Race Strategist Overlay</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: transparent;
+            color: white;
+            overflow: hidden;
+            height: 100vh;
+            width: 100vw;
+        }
+
+        /* Panel base styles */
+        .panel {
+            background: rgba(0, 0, 0, 0.80);
+            border-radius: 8px;
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            padding: 12px 16px;
+        }
+
+        .panel-title {
+            font-size: 10px;
+            text-transform: uppercase;
+            letter-spacing: 1.5px;
+            color: rgba(255, 255, 255, 0.5);
+            margin-bottom: 8px;
+            font-weight: 600;
+        }
+
+        /* Top Left - Race Context */
+        .race-context {
+            position: fixed;
+            top: 20px;
+            left: 20px;
+            min-width: 220px;
+        }
+
+        .track-name {
+            font-size: 18px;
+            font-weight: 600;
+            color: #60a5fa;
+            margin-bottom: 2px;
+        }
+
+        .car-name {
+            font-size: 14px;
+            color: rgba(255, 255, 255, 0.8);
+            margin-bottom: 8px;
+        }
+
+        .session-info {
+            display: flex;
+            gap: 12px;
+            font-size: 13px;
+        }
+
+        .session-badge {
+            background: #3b82f6;
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-weight: 600;
+            font-size: 11px;
+        }
+
+        .session-time {
+            color: rgba(255, 255, 255, 0.7);
+        }
+
+        .position-large {
+            font-size: 42px;
+            font-weight: 700;
+            color: #4ade80;
+            line-height: 1;
+            margin-top: 8px;
+        }
+
+        .lap-info {
+            font-size: 14px;
+            color: rgba(255, 255, 255, 0.6);
+        }
+
+        /* Top Right - Performance */
+        .performance {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            min-width: 180px;
+            text-align: right;
+        }
+
+        .lap-times {
+            margin-bottom: 10px;
+        }
+
+        .time-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 4px;
+        }
+
+        .time-label {
+            font-size: 11px;
+            color: rgba(255, 255, 255, 0.5);
+            text-transform: uppercase;
+        }
+
+        .time-value {
+            font-size: 18px;
+            font-weight: 600;
+            font-variant-numeric: tabular-nums;
+            font-family: 'Consolas', 'Monaco', monospace;
+        }
+
+        .time-value.best {
+            color: #a855f7;
+        }
+
+        .time-value.last {
+            color: #facc15;
+        }
+
+        .delta {
+            font-size: 24px;
+            font-weight: 700;
+            font-family: 'Consolas', 'Monaco', monospace;
+        }
+
+        .delta.positive {
+            color: #ef4444;
+        }
+
+        .delta.negative {
+            color: #4ade80;
+        }
+
+        .incidents {
+            display: flex;
+            align-items: center;
+            justify-content: flex-end;
+            gap: 6px;
+            margin-top: 8px;
+            font-size: 14px;
+        }
+
+        .incidents-label {
+            color: rgba(255, 255, 255, 0.5);
+        }
+
+        .incidents-value {
+            color: #f97316;
+            font-weight: 600;
+        }
+
+        /* Middle Left - Telemetry */
+        .telemetry {
+            position: fixed;
+            top: 50%;
+            left: 20px;
+            transform: translateY(-50%);
+            min-width: 200px;
+        }
+
+        .fuel-section {
+            margin-bottom: 12px;
+        }
+
+        .fuel-main {
+            display: flex;
+            align-items: baseline;
+            gap: 8px;
+        }
+
+        .fuel-level {
+            font-size: 28px;
+            font-weight: 600;
+            color: #facc15;
+        }
+
+        .fuel-level.warning {
+            color: #f97316;
+        }
+
+        .fuel-level.critical {
+            color: #ef4444;
+            animation: pulse 1s ease-in-out infinite;
+        }
+
+        .fuel-unit {
+            font-size: 14px;
+            color: rgba(255, 255, 255, 0.5);
+        }
+
+        .fuel-details {
+            font-size: 12px;
+            color: rgba(255, 255, 255, 0.6);
+            margin-top: 4px;
+        }
+
+        .fuel-bar {
+            height: 6px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 3px;
+            margin-top: 6px;
+            overflow: hidden;
+        }
+
+        .fuel-bar-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #ef4444, #facc15, #4ade80);
+            border-radius: 3px;
+            transition: width 0.3s ease;
+        }
+
+        .temps-section {
+            margin-top: 12px;
+        }
+
+        .temp-row {
+            display: flex;
+            justify-content: space-between;
+            font-size: 13px;
+            margin-bottom: 4px;
+        }
+
+        .temp-label {
+            color: rgba(255, 255, 255, 0.5);
+        }
+
+        .temp-value {
+            color: #60a5fa;
+        }
+
+        .gaps-section {
+            margin-top: 12px;
+            padding-top: 12px;
+            border-top: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .gap-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 4px;
+        }
+
+        .gap-label {
+            font-size: 11px;
+            color: rgba(255, 255, 255, 0.5);
+        }
+
+        .gap-value {
+            font-size: 16px;
+            font-weight: 600;
+            font-family: 'Consolas', 'Monaco', monospace;
+        }
+
+        .gap-value.ahead {
+            color: #f87171;
+        }
+
+        .gap-value.behind {
+            color: #4ade80;
+        }
+
+        /* Middle Right - AI Debug */
+        .ai-debug {
+            position: fixed;
+            top: 50%;
+            right: 20px;
+            transform: translateY(-50%);
+            width: 280px;
+        }
+
+        .ai-status {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 10px;
+        }
+
+        .status-indicator {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background: #4ade80;
+        }
+
+        .status-indicator.thinking {
+            background: #facc15;
+            animation: pulse 0.5s ease-in-out infinite;
+        }
+
+        .status-text {
+            font-size: 13px;
+            font-weight: 600;
+        }
+
+        .model-badge {
+            background: rgba(139, 92, 246, 0.3);
+            color: #a855f7;
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-size: 11px;
+            font-weight: 600;
+            margin-left: auto;
+        }
+
+        .prompt-preview {
+            background: rgba(0, 0, 0, 0.4);
+            border-radius: 6px;
+            padding: 10px;
+            margin-bottom: 10px;
+            max-height: 80px;
+            overflow: hidden;
+        }
+
+        .prompt-label {
+            font-size: 10px;
+            color: rgba(255, 255, 255, 0.4);
+            text-transform: uppercase;
+            margin-bottom: 4px;
+        }
+
+        .prompt-text {
+            font-size: 11px;
+            color: rgba(255, 255, 255, 0.7);
+            font-family: 'Consolas', 'Monaco', monospace;
+            line-height: 1.4;
+            word-break: break-word;
+        }
+
+        .ai-metrics {
+            display: flex;
+            gap: 16px;
+        }
+
+        .metric {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .metric-label {
+            font-size: 10px;
+            color: rgba(255, 255, 255, 0.4);
+            text-transform: uppercase;
+        }
+
+        .metric-value {
+            font-size: 16px;
+            font-weight: 600;
+            color: #4ade80;
+            font-family: 'Consolas', 'Monaco', monospace;
+        }
+
+        .metric-value.latency {
+            color: #60a5fa;
+        }
+
+        /* Bottom Left - Visual Enhancements */
+        .visuals {
+            position: fixed;
+            bottom: 100px;
+            left: 20px;
+            min-width: 200px;
+        }
+
+        .tire-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 8px;
+            margin-bottom: 12px;
+        }
+
+        .tire-box {
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 6px;
+            padding: 8px;
+            text-align: center;
+        }
+
+        .tire-corner {
+            font-size: 11px;
+            font-weight: 600;
+            color: rgba(255, 255, 255, 0.6);
+            margin-bottom: 4px;
+        }
+
+        .tire-temp {
+            font-size: 18px;
+            font-weight: 600;
+            color: #60a5fa;
+        }
+
+        .tire-wear-bar {
+            height: 4px;
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 2px;
+            margin-top: 4px;
+            overflow: hidden;
+        }
+
+        .tire-wear-fill {
+            height: 100%;
+            background: #4ade80;
+            border-radius: 2px;
+            transition: width 0.3s ease, background 0.3s ease;
+        }
+
+        .tire-wear-fill.warning {
+            background: #f97316;
+        }
+
+        .tire-wear-fill.critical {
+            background: #ef4444;
+        }
+
+        .pit-countdown {
+            background: rgba(59, 130, 246, 0.2);
+            border: 1px solid rgba(59, 130, 246, 0.4);
+            border-radius: 6px;
+            padding: 10px;
+            text-align: center;
+        }
+
+        .pit-countdown.urgent {
+            background: rgba(239, 68, 68, 0.2);
+            border-color: rgba(239, 68, 68, 0.4);
+        }
+
+        .pit-label {
+            font-size: 11px;
+            color: rgba(255, 255, 255, 0.6);
+            text-transform: uppercase;
+        }
+
+        .pit-value {
+            font-size: 24px;
+            font-weight: 700;
+            color: #60a5fa;
+        }
+
+        .pit-countdown.urgent .pit-value {
+            color: #ef4444;
+        }
+
+        /* Bottom Center - AI Message */
+        .ai-panel {
+            position: fixed;
+            bottom: 30px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 600px;
+            max-width: 80vw;
+            background: rgba(0, 0, 0, 0.90);
+            border-radius: 12px;
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            overflow: hidden;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        }
+
+        .ai-panel.visible {
+            opacity: 1;
+        }
+
+        .ai-panel.urgency-critical {
+            border-color: #ef4444;
+            box-shadow: 0 0 30px rgba(239, 68, 68, 0.4);
+        }
+
+        .ai-panel.urgency-warning {
+            border-color: #f97316;
+            box-shadow: 0 0 20px rgba(249, 115, 22, 0.3);
+        }
+
+        .ai-message {
+            padding: 16px 20px;
+            font-size: 20px;
+            font-weight: 500;
+            line-height: 1.4;
+            text-align: center;
+        }
+
+        .ai-footer {
+            background: rgba(0, 0, 0, 0.5);
+            padding: 10px 20px;
+            border-top: 1px solid rgba(255, 255, 255, 0.1);
+            display: flex;
+            justify-content: center;
+            gap: 24px;
+            font-size: 11px;
+        }
+
+        .footer-item {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .footer-label {
+            color: rgba(255, 255, 255, 0.4);
+        }
+
+        .footer-value {
+            color: rgba(255, 255, 255, 0.8);
+            font-family: 'Consolas', 'Monaco', monospace;
+        }
+
+        .urgency-badge {
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-weight: 600;
+            text-transform: uppercase;
+            font-size: 10px;
+        }
+
+        .urgency-badge.critical {
+            background: #ef4444;
+        }
+
+        .urgency-badge.warning {
+            background: #f97316;
+        }
+
+        .urgency-badge.ok, .urgency-badge.info {
+            background: #22c55e;
+        }
+
+        /* Lap Progress Bar */
+        .lap-progress {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            height: 4px;
+            background: rgba(255, 255, 255, 0.1);
+        }
+
+        .lap-progress-bar {
+            height: 100%;
+            background: linear-gradient(90deg, #3b82f6, #8b5cf6);
+            transition: width 0.1s linear;
+        }
+
+        /* Connection indicator */
+        .connection {
+            position: fixed;
+            top: 10px;
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 11px;
+            color: rgba(255, 255, 255, 0.4);
+            opacity: 0.5;
+        }
+
+        .connection-dot {
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            background: #ef4444;
+        }
+
+        .connection-dot.connected {
+            background: #4ade80;
+        }
+
+        /* Animations */
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateX(-50%) translateY(10px); }
+            to { opacity: 1; transform: translateX(-50%) translateY(0); }
+        }
+
+        .ai-panel.visible {
+            animation: fadeIn 0.3s ease;
+        }
+    </style>
+</head>
+<body>
+    <!-- Connection Status -->
+    <div class="connection">
+        <div class="connection-dot" id="connectionDot"></div>
+        <span id="connectionText">Connecting...</span>
+    </div>
+
+    <!-- Top Left - Race Context -->
+    <div class="panel race-context">
+        <div class="panel-title">Race Context</div>
+        <div class="track-name" id="trackName">Waiting for data...</div>
+        <div class="car-name" id="carName">--</div>
+        <div class="session-info">
+            <span class="session-badge" id="sessionType">--</span>
+            <span class="session-time" id="sessionTime">--:--</span>
+        </div>
+        <div class="position-large" id="position">P-</div>
+        <div class="lap-info">Lap <span id="currentLap">-</span><span id="totalLaps"></span></div>
+    </div>
+
+    <!-- Top Right - Performance -->
+    <div class="panel performance">
+        <div class="panel-title">Performance</div>
+        <div class="lap-times">
+            <div class="time-row">
+                <span class="time-label">Last</span>
+                <span class="time-value last" id="lastLap">--:--.---</span>
+            </div>
+            <div class="time-row">
+                <span class="time-label">Best</span>
+                <span class="time-value best" id="bestLap">--:--.---</span>
+            </div>
+        </div>
+        <div class="delta positive" id="lapDelta">+0.000</div>
+        <div class="incidents">
+            <span class="incidents-label">Incidents:</span>
+            <span class="incidents-value" id="incidents">0x</span>
+        </div>
+    </div>
+
+    <!-- Middle Left - Telemetry -->
+    <div class="panel telemetry">
+        <div class="panel-title">Telemetry</div>
+        <div class="fuel-section">
+            <div class="fuel-main">
+                <span class="fuel-level" id="fuelLaps">--</span>
+                <span class="fuel-unit">laps of fuel</span>
+            </div>
+            <div class="fuel-details">
+                <span id="fuelLevel">--</span>L remaining | <span id="fuelPerLap">--</span>L/lap
+            </div>
+            <div class="fuel-bar">
+                <div class="fuel-bar-fill" id="fuelBar" style="width: 50%"></div>
+            </div>
+        </div>
+        <div class="temps-section">
+            <div class="temp-row">
+                <span class="temp-label">Track Temp</span>
+                <span class="temp-value" id="trackTemp">--°C</span>
+            </div>
+            <div class="temp-row">
+                <span class="temp-label">Air Temp</span>
+                <span class="temp-value" id="airTemp">--°C</span>
+            </div>
+        </div>
+        <div class="gaps-section">
+            <div class="gap-row">
+                <span class="gap-label">Gap Ahead</span>
+                <span class="gap-value ahead" id="gapAhead">+-.--</span>
+            </div>
+            <div class="gap-row">
+                <span class="gap-label">Gap Behind</span>
+                <span class="gap-value behind" id="gapBehind">--.--</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Middle Right - AI Debug -->
+    <div class="panel ai-debug">
+        <div class="panel-title">AI Debug</div>
+        <div class="ai-status">
+            <div class="status-indicator" id="aiStatusDot"></div>
+            <span class="status-text" id="aiStatusText">Idle</span>
+            <span class="model-badge" id="modelName">Llama 3.1 8B</span>
+        </div>
+        <div class="prompt-preview">
+            <div class="prompt-label">Last Prompt</div>
+            <div class="prompt-text" id="promptText">Waiting for AI call...</div>
+        </div>
+        <div class="ai-metrics">
+            <div class="metric">
+                <span class="metric-label">Latency</span>
+                <span class="metric-value latency" id="aiLatency">--ms</span>
+            </div>
+            <div class="metric">
+                <span class="metric-label">Trigger</span>
+                <span class="metric-value" id="aiTrigger">--</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Bottom Left - Visuals -->
+    <div class="panel visuals">
+        <div class="panel-title">Tires</div>
+        <div class="tire-grid">
+            <div class="tire-box" id="tireLF">
+                <div class="tire-corner">LF</div>
+                <div class="tire-temp">--°</div>
+                <div class="tire-wear-bar"><div class="tire-wear-fill" style="width: 100%"></div></div>
+            </div>
+            <div class="tire-box" id="tireRF">
+                <div class="tire-corner">RF</div>
+                <div class="tire-temp">--°</div>
+                <div class="tire-wear-bar"><div class="tire-wear-fill" style="width: 100%"></div></div>
+            </div>
+            <div class="tire-box" id="tireLR">
+                <div class="tire-corner">LR</div>
+                <div class="tire-temp">--°</div>
+                <div class="tire-wear-bar"><div class="tire-wear-fill" style="width: 100%"></div></div>
+            </div>
+            <div class="tire-box" id="tireRR">
+                <div class="tire-corner">RR</div>
+                <div class="tire-temp">--°</div>
+                <div class="tire-wear-bar"><div class="tire-wear-fill" style="width: 100%"></div></div>
+            </div>
+        </div>
+        <div class="pit-countdown" id="pitCountdown">
+            <div class="pit-label">Pit Window</div>
+            <div class="pit-value" id="pitWindow">-- laps</div>
+        </div>
+    </div>
+
+    <!-- Bottom Center - AI Message -->
+    <div class="ai-panel" id="aiPanel">
+        <div class="ai-message" id="aiMessage">Waiting for AI...</div>
+        <div class="ai-footer">
+            <div class="footer-item">
+                <span class="footer-label">Trigger:</span>
+                <span class="footer-value" id="footerTrigger">--</span>
+            </div>
+            <div class="footer-item">
+                <span class="footer-label">Latency:</span>
+                <span class="footer-value" id="footerLatency">--</span>
+            </div>
+            <div class="footer-item">
+                <span class="urgency-badge ok" id="urgencyBadge">OK</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Lap Progress Bar -->
+    <div class="lap-progress">
+        <div class="lap-progress-bar" id="lapProgress" style="width: 0%"></div>
+    </div>
+
+    <script>
+        let ws = null;
+        let reconnectTimer = null;
+        let aiMessageTimer = null;
+        const AI_MESSAGE_DISPLAY_TIME = 10000;
+
+        function connect() {
+            const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+            ws = new WebSocket(`${protocol}//${window.location.host}/ws`);
+
+            ws.onopen = () => {
+                document.getElementById('connectionDot').classList.add('connected');
+                document.getElementById('connectionText').textContent = 'Connected';
+            };
+
+            ws.onclose = () => {
+                document.getElementById('connectionDot').classList.remove('connected');
+                document.getElementById('connectionText').textContent = 'Disconnected';
+                reconnectTimer = setTimeout(connect, 2000);
+            };
+
+            ws.onerror = (error) => console.error('WebSocket error:', error);
+
+            ws.onmessage = (event) => {
+                try {
+                    const msg = JSON.parse(event.data);
+                    if (msg.type === 'telemetry') updateTelemetry(msg.data);
+                    else if (msg.type === 'ai_message') showAIMessage(msg.data);
+                    else if (msg.type === 'ai_thinking') showAIThinking(msg.data);
+                } catch (e) {
+                    console.error('Parse error:', e);
+                }
+            };
+        }
+
+        function formatLapTime(seconds) {
+            if (!seconds || seconds <= 0) return '--:--.---';
+            const mins = Math.floor(seconds / 60);
+            const secs = (seconds % 60).toFixed(3);
+            return `${mins}:${secs.padStart(6, '0')}`;
+        }
+
+        function updateTelemetry(d) {
+            // Race Context
+            document.getElementById('trackName').textContent = d.track_name || 'Unknown Track';
+            document.getElementById('carName').textContent = d.car_name || 'Unknown Car';
+            document.getElementById('sessionType').textContent = d.session_type || 'Race';
+            document.getElementById('sessionTime').textContent = d.session_time_remain || '--:--';
+            document.getElementById('position').textContent = `P${d.position}`;
+            document.getElementById('currentLap').textContent = d.lap;
+            document.getElementById('totalLaps').textContent = d.session_laps_remain ? ` / ${d.lap + d.session_laps_remain}` : '';
+
+            // Performance
+            document.getElementById('lastLap').textContent = formatLapTime(d.last_lap_time);
+            document.getElementById('bestLap').textContent = formatLapTime(d.best_lap_time);
+
+            const delta = d.lap_delta || 0;
+            const deltaEl = document.getElementById('lapDelta');
+            deltaEl.textContent = (delta >= 0 ? '+' : '') + delta.toFixed(3);
+            deltaEl.className = 'delta ' + (delta >= 0 ? 'positive' : 'negative');
+
+            document.getElementById('incidents').textContent = `${d.incident_count || 0}x`;
+
+            // Fuel
+            const fuelLapsEl = document.getElementById('fuelLaps');
+            fuelLapsEl.textContent = d.fuel_laps > 99 ? '99+' : d.fuel_laps.toFixed(1);
+            fuelLapsEl.className = 'fuel-level';
+            if (d.fuel_laps <= 2) fuelLapsEl.classList.add('critical');
+            else if (d.fuel_laps <= 5) fuelLapsEl.classList.add('warning');
+
+            document.getElementById('fuelLevel').textContent = d.fuel_level.toFixed(1);
+            document.getElementById('fuelPerLap').textContent = d.fuel_per_lap > 0 ? d.fuel_per_lap.toFixed(2) : '--';
+            document.getElementById('fuelBar').style.width = `${Math.min(d.fuel_pct, 100)}%`;
+
+            // Temps
+            document.getElementById('trackTemp').textContent = `${d.track_temp}°C`;
+            document.getElementById('airTemp').textContent = `${d.air_temp}°C`;
+
+            // Gaps
+            document.getElementById('gapAhead').textContent = d.gap_ahead ? `+${d.gap_ahead.toFixed(2)}` : '+-.--';
+            document.getElementById('gapBehind').textContent = d.gap_behind ? `-${d.gap_behind.toFixed(2)}` : '--.--';
+
+            // Tires
+            ['LF', 'RF', 'LR', 'RR'].forEach(corner => {
+                const box = document.getElementById(`tire${corner}`);
+                const temp = d.tire_temps[corner];
+                const wear = d.tire_wear[corner];
+                const remaining = 100 - wear;
+
+                box.querySelector('.tire-temp').textContent = `${temp.toFixed(0)}°`;
+                const fill = box.querySelector('.tire-wear-fill');
+                fill.style.width = `${remaining}%`;
+                fill.className = 'tire-wear-fill';
+                if (wear >= 85) fill.classList.add('critical');
+                else if (wear >= 70) fill.classList.add('warning');
+            });
+
+            // Pit countdown
+            const pitEl = document.getElementById('pitCountdown');
+            const pitVal = document.getElementById('pitWindow');
+            pitVal.textContent = d.pit_window >= 999 ? '99+ laps' : `${d.pit_window} laps`;
+            pitEl.className = 'pit-countdown' + (d.pit_window <= 3 ? ' urgent' : '');
+
+            // Lap progress
+            document.getElementById('lapProgress').style.width = `${d.lap_pct}%`;
+        }
+
+        function showAIThinking(d) {
+            document.getElementById('aiStatusDot').classList.add('thinking');
+            document.getElementById('aiStatusText').textContent = 'Thinking...';
+            document.getElementById('promptText').textContent = d.prompt_preview || '...';
+            document.getElementById('modelName').textContent = d.model || 'Mistral 7B';
+        }
+
+        function showAIMessage(d) {
+            // Update debug panel
+            document.getElementById('aiStatusDot').classList.remove('thinking');
+            document.getElementById('aiStatusText').textContent = 'Complete';
+            document.getElementById('promptText').textContent = d.prompt_preview || '--';
+            document.getElementById('aiLatency').textContent = `${d.latency_ms}ms`;
+            document.getElementById('aiTrigger').textContent = d.trigger_reason.split(':')[0] || '--';
+            document.getElementById('modelName').textContent = d.model || 'Mistral 7B';
+
+            // Update message panel
+            const panel = document.getElementById('aiPanel');
+            document.getElementById('aiMessage').textContent = d.message;
+            document.getElementById('footerTrigger').textContent = d.trigger_reason;
+            document.getElementById('footerLatency').textContent = `${d.latency_ms}ms`;
+
+            const badge = document.getElementById('urgencyBadge');
+            badge.textContent = d.urgency.toUpperCase();
+            badge.className = 'urgency-badge ' + d.urgency;
+
+            panel.className = 'ai-panel visible';
+            if (d.urgency === 'critical') panel.classList.add('urgency-critical');
+            else if (d.urgency === 'warning') panel.classList.add('urgency-warning');
+
+            if (aiMessageTimer) clearTimeout(aiMessageTimer);
+            aiMessageTimer = setTimeout(() => {
+                panel.classList.remove('visible');
+            }, AI_MESSAGE_DISPLAY_TIME);
+        }
+
+        connect();
+        setInterval(() => {
+            if (ws && ws.readyState === WebSocket.OPEN) ws.send('ping');
+        }, 30000);
+    </script>
+</body>
+</html>
