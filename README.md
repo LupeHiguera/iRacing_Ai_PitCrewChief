@@ -10,6 +10,10 @@ A real-time AI race engineer that provides voice strategy updates during iRacing
 - **Voice output** - Text-to-speech using Piper for hands-free racing
 - **Session logging** - Captures telemetry and LLM responses for analysis
 
+## Demo
+
+[Youtube](https://www.youtube.com/watch?v=D0YSpfuh97o)
+
 ## Architecture
 
 ```
