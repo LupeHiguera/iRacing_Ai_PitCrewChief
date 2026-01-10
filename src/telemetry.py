@@ -67,11 +67,20 @@ class TelemetrySnapshot:
     track_temp_c: float = 0.0
     air_temp_c: float = 0.0
 
-    # Brake temps (Celsius)
-    brake_temp_lf: float = 0.0
-    brake_temp_rf: float = 0.0
-    brake_temp_lr: float = 0.0
-    brake_temp_rr: float = 0.0
+    # Brake line pressure (kPa) - iRacing doesn't expose brake temps
+    brake_press_lf: float = 0.0
+    brake_press_rf: float = 0.0
+    brake_press_lr: float = 0.0
+    brake_press_rr: float = 0.0
+
+    # Session flags (bitmask - 0x4=green, 0x8=yellow, etc.)
+    session_flags: int = 0
+
+    # Driver incidents
+    incident_count: int = 0
+
+    # Lap delta to best (negative = faster than best)
+    lap_delta_to_best: float = 0.0
 
 
 class TelemetryReader:
@@ -185,11 +194,15 @@ class TelemetryReader:
                 # Track conditions
                 track_temp_c=self._ir['TrackTempCrew'] or 0.0,
                 air_temp_c=self._ir['AirTemp'] or 0.0,
-                # Brake temps
-                brake_temp_lf=self._ir['LFbrakeTemp'] or 0.0,
-                brake_temp_rf=self._ir['RFbrakeTemp'] or 0.0,
-                brake_temp_lr=self._ir['LRbrakeTemp'] or 0.0,
-                brake_temp_rr=self._ir['RRbrakeTemp'] or 0.0,
+                # Brake line pressure (iRacing doesn't expose brake temps)
+                brake_press_lf=self._ir['LFbrakeLinePress'] or 0.0,
+                brake_press_rf=self._ir['RFbrakeLinePress'] or 0.0,
+                brake_press_lr=self._ir['LRbrakeLinePress'] or 0.0,
+                brake_press_rr=self._ir['RRbrakeLinePress'] or 0.0,
+                # Session flags, incidents, lap delta
+                session_flags=self._ir['SessionFlags'] or 0,
+                incident_count=self._ir['PlayerCarDriverIncidentCount'] or 0,
+                lap_delta_to_best=self._ir['LapDeltaToBestLap'] or 0.0,
             )
         except Exception:
             return None
@@ -217,6 +230,9 @@ class TelemetryReader:
         """
         Calculate gaps to car ahead and behind in seconds.
 
+        Uses CarIdxLapDistPct (track position 0-1) and best lap time
+        to estimate gaps. This avoids wrap-around issues with CarIdxEstTime.
+
         Returns:
             Tuple of (gap_ahead_sec, gap_behind_sec). None if no car ahead/behind.
         """
@@ -226,16 +242,20 @@ class TelemetryReader:
         try:
             player_idx = self._ir['PlayerCarIdx']
             positions = self._ir['CarIdxPosition']
-            est_times = self._ir['CarIdxEstTime']
+            lap_pcts = self._ir['CarIdxLapDistPct']
+            best_lap = self._ir['LapBestLapTime']
 
-            if player_idx is None or positions is None or est_times is None:
+            if player_idx is None or positions is None or lap_pcts is None:
                 return None, None
 
             player_position = positions[player_idx]
-            player_time = est_times[player_idx]
+            player_pct = lap_pcts[player_idx]
 
-            if player_position <= 0 or player_time <= 0:
+            if player_position <= 0 or player_pct is None:
                 return None, None
+
+            # Use best lap time for conversion, fallback to 60s estimate
+            lap_time = best_lap if best_lap and best_lap > 0 else 60.0
 
             gap_ahead = None
             gap_behind = None
@@ -245,16 +265,29 @@ class TelemetryReader:
                 if pos <= 0 or idx == player_idx:
                     continue
 
-                car_time = est_times[idx]
-                if car_time <= 0:
+                car_pct = lap_pcts[idx]
+                if car_pct is None:
                     continue
 
                 if pos == player_position - 1:
-                    # Car ahead
-                    gap_ahead = player_time - car_time
+                    # Car ahead - they have more distance covered
+                    pct_diff = car_pct - player_pct
+                    # Handle wrap-around (car just crossed start/finish)
+                    if pct_diff < -0.5:
+                        pct_diff += 1.0
+                    elif pct_diff > 0.5:
+                        pct_diff -= 1.0
+                    gap_ahead = abs(pct_diff) * lap_time
+
                 elif pos == player_position + 1:
-                    # Car behind
-                    gap_behind = car_time - player_time
+                    # Car behind - they have less distance covered
+                    pct_diff = player_pct - car_pct
+                    # Handle wrap-around
+                    if pct_diff < -0.5:
+                        pct_diff += 1.0
+                    elif pct_diff > 0.5:
+                        pct_diff -= 1.0
+                    gap_behind = abs(pct_diff) * lap_time
 
             return gap_ahead, gap_behind
 
