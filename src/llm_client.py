@@ -136,8 +136,15 @@ class LMStudioClient:
             f"Lap {snapshot.lap}, P{snapshot.position}",
             f"Fuel: {state.laps_of_fuel:.1f} laps remaining ({state.fuel_per_lap:.2f}/lap)",
             f"Tires: {state.worst_tire_corner} at {state.worst_tire_wear:.0f}% worn",
-            f"Session: {snapshot.session_laps_remain} laps to go",
         ]
+
+        # Add session info - handle time-based vs lap-based races
+        if snapshot.session_laps_remain < 1000:
+            lines.append(f"Session: {snapshot.session_laps_remain} laps to go")
+        elif snapshot.session_time_remain > 0:
+            mins_remain = int(snapshot.session_time_remain // 60)
+            lines.append(f"Session: {mins_remain} minutes remaining")
+        # Omit session line if neither is useful
 
         # Add gap info if available
         if snapshot.gap_behind_sec is not None:
