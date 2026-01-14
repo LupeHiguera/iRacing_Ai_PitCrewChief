@@ -2,6 +2,7 @@
 Async LLM client for LM Studio's OpenAI-compatible API.
 """
 
+import json
 import time
 import asyncio
 from dataclasses import dataclass
@@ -13,6 +14,7 @@ from typing import TYPE_CHECKING
 
 from .telemetry import TelemetrySnapshot
 from .strategy import StrategyState, Urgency
+from .metadata import get_car_metadata, get_track_metadata
 
 if TYPE_CHECKING:
     from .event_detector import RaceEvent
@@ -170,6 +172,104 @@ class LMStudioClient:
             lines.append(f"Pit recommended: {state.pit_reason}")
 
         return "\n".join(lines)
+
+    def format_telemetry_prompt_json(
+        self,
+        state: StrategyState,
+        snapshot: TelemetrySnapshot,
+        car_name: str,
+        track_name: str,
+        event: Optional["RaceEvent"] = None,
+    ) -> str:
+        """
+        Format telemetry into JSON format matching training data schema.
+
+        This format is used for the fine-tuned model which expects structured
+        JSON input with car/track metadata.
+
+        Args:
+            state: Current strategy state.
+            snapshot: Current telemetry snapshot.
+            car_name: Car name from iRacing.
+            track_name: Track name from iRacing.
+            event: Optional event that triggered this call.
+
+        Returns:
+            JSON string with all telemetry fields.
+        """
+        # Get car metadata
+        car_meta = get_car_metadata(car_name)
+        if car_meta:
+            car_class = car_meta.get("class", "unknown")
+            car_traits = car_meta.get("traits", [])
+        else:
+            car_class = "unknown"
+            car_traits = []
+
+        # Get track metadata
+        track_meta = get_track_metadata(track_name)
+        if track_meta:
+            track_short_name = track_meta.get("name", track_name)
+            track_type = track_meta.get("type", "unknown")
+        else:
+            track_short_name = track_name
+            track_type = "unknown"
+
+        # Calculate averaged tire temps (L/M/R -> single value per corner)
+        tire_temps = {
+            "fl": round((snapshot.tire_temp_lf_l + snapshot.tire_temp_lf_m + snapshot.tire_temp_lf_r) / 3, 1),
+            "fr": round((snapshot.tire_temp_rf_l + snapshot.tire_temp_rf_m + snapshot.tire_temp_rf_r) / 3, 1),
+            "rl": round((snapshot.tire_temp_lr_l + snapshot.tire_temp_lr_m + snapshot.tire_temp_lr_r) / 3, 1),
+            "rr": round((snapshot.tire_temp_rr_l + snapshot.tire_temp_rr_m + snapshot.tire_temp_rr_r) / 3, 1),
+        }
+
+        # Build the data structure
+        data = {
+            # Car info
+            "car": car_name,
+            "car_class": car_class,
+            "car_traits": car_traits,
+
+            # Track info
+            "track": track_short_name,
+            "track_type": track_type,
+
+            # Lap info
+            "lap": snapshot.lap,
+            "lap_pct": snapshot.lap_pct,
+            "position": snapshot.position,
+
+            # Fuel
+            "fuel_laps_remaining": state.laps_of_fuel,
+
+            # Tire wear
+            "tire_wear": {
+                "fl": snapshot.tire_wear_lf,
+                "fr": snapshot.tire_wear_rf,
+                "rl": snapshot.tire_wear_lr,
+                "rr": snapshot.tire_wear_rr,
+            },
+
+            # Tire temps (averaged)
+            "tire_temps": tire_temps,
+
+            # Gaps
+            "gap_ahead": snapshot.gap_ahead_sec,
+            "gap_behind": snapshot.gap_behind_sec,
+
+            # Lap times
+            "last_lap_time": snapshot.last_lap_time,
+            "best_lap_time": snapshot.best_lap_time,
+
+            # Session
+            "session_laps_remain": snapshot.session_laps_remain,
+
+            # Other
+            "incident_count": snapshot.incident_count,
+            "track_temp_c": snapshot.track_temp_c,
+        }
+
+        return json.dumps(data)
 
     async def close(self) -> None:
         """Close the aiohttp session."""

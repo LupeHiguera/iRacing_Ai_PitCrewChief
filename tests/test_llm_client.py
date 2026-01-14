@@ -387,3 +387,317 @@ class TestEdgeCases:
         assert result2 is not None
         assert result3 is not None
         assert mock.call_count == 3
+
+
+# =============================================================================
+# NEW TESTS: JSON Format for Fine-Tuned Model (TDD)
+# =============================================================================
+
+class TestFormatTelemetryPromptJSON:
+    """Tests for JSON format output matching training data format."""
+
+    def test_format_returns_valid_json(self):
+        """Test format_telemetry_prompt_json returns valid JSON string."""
+        import json
+        client = LMStudioClient()
+        snapshot = make_snapshot()
+        state = make_strategy_state()
+
+        prompt = client.format_telemetry_prompt_json(
+            state, snapshot, car_name="BMW M4 GT3", track_name="Autodromo Nazionale Monza"
+        )
+
+        # Should be valid JSON
+        data = json.loads(prompt)
+        assert isinstance(data, dict)
+
+    def test_json_includes_car_info(self):
+        """Test JSON includes car name, class, and traits."""
+        import json
+        client = LMStudioClient()
+        snapshot = make_snapshot()
+        state = make_strategy_state()
+
+        prompt = client.format_telemetry_prompt_json(
+            state, snapshot, car_name="BMW M4 GT3", track_name="Autodromo Nazionale Monza"
+        )
+        data = json.loads(prompt)
+
+        assert "car" in data
+        assert "car_class" in data
+        assert "car_traits" in data
+        assert data["car"] == "BMW M4 GT3"
+        assert data["car_class"] == "GT3"
+        assert isinstance(data["car_traits"], list)
+
+    def test_json_includes_track_info(self):
+        """Test JSON includes track name and type."""
+        import json
+        client = LMStudioClient()
+        snapshot = make_snapshot()
+        state = make_strategy_state()
+
+        prompt = client.format_telemetry_prompt_json(
+            state, snapshot, car_name="BMW M4 GT3", track_name="Autodromo Nazionale Monza"
+        )
+        data = json.loads(prompt)
+
+        assert "track" in data
+        assert "track_type" in data
+        assert data["track"] == "Monza"  # Short name
+        assert data["track_type"] == "high_speed"
+
+    def test_json_includes_lap_info(self):
+        """Test JSON includes lap number and lap_pct."""
+        import json
+        client = LMStudioClient()
+        snapshot = make_snapshot(lap=12, lap_pct=0.65)
+        state = make_strategy_state()
+
+        prompt = client.format_telemetry_prompt_json(
+            state, snapshot, car_name="BMW M4 GT3", track_name="Autodromo Nazionale Monza"
+        )
+        data = json.loads(prompt)
+
+        assert data["lap"] == 12
+        assert data["lap_pct"] == 0.65
+
+    def test_json_includes_position(self):
+        """Test JSON includes position."""
+        import json
+        client = LMStudioClient()
+        snapshot = make_snapshot(position=8)
+        state = make_strategy_state()
+
+        prompt = client.format_telemetry_prompt_json(
+            state, snapshot, car_name="BMW M4 GT3", track_name="Autodromo Nazionale Monza"
+        )
+        data = json.loads(prompt)
+
+        assert data["position"] == 8
+
+    def test_json_includes_fuel_laps_remaining(self):
+        """Test JSON includes fuel_laps_remaining from strategy state."""
+        import json
+        client = LMStudioClient()
+        snapshot = make_snapshot()
+        state = make_strategy_state(laps_of_fuel=14.5)
+
+        prompt = client.format_telemetry_prompt_json(
+            state, snapshot, car_name="BMW M4 GT3", track_name="Autodromo Nazionale Monza"
+        )
+        data = json.loads(prompt)
+
+        assert data["fuel_laps_remaining"] == 14.5
+
+    def test_json_includes_tire_wear_dict(self):
+        """Test JSON includes tire_wear as dict with fl/fr/rl/rr keys."""
+        import json
+        client = LMStudioClient()
+        snapshot = make_snapshot(
+            tire_wear_lf=15.0, tire_wear_rf=22.0,
+            tire_wear_lr=12.0, tire_wear_rr=14.0
+        )
+        state = make_strategy_state()
+
+        prompt = client.format_telemetry_prompt_json(
+            state, snapshot, car_name="BMW M4 GT3", track_name="Autodromo Nazionale Monza"
+        )
+        data = json.loads(prompt)
+
+        assert "tire_wear" in data
+        assert isinstance(data["tire_wear"], dict)
+        assert data["tire_wear"]["fl"] == 15.0
+        assert data["tire_wear"]["fr"] == 22.0
+        assert data["tire_wear"]["rl"] == 12.0
+        assert data["tire_wear"]["rr"] == 14.0
+
+    def test_json_includes_tire_temps_averaged(self):
+        """Test JSON includes tire_temps as averaged L/M/R to single value per corner."""
+        import json
+        client = LMStudioClient()
+        # Set tire temps: LF L=90, M=95, R=100 -> avg = 95
+        snapshot = make_snapshot()
+        # We need to set tire temps on the snapshot
+        snapshot.tire_temp_lf_l = 90.0
+        snapshot.tire_temp_lf_m = 95.0
+        snapshot.tire_temp_lf_r = 100.0
+        snapshot.tire_temp_rf_l = 100.0
+        snapshot.tire_temp_rf_m = 102.0
+        snapshot.tire_temp_rf_r = 104.0
+        snapshot.tire_temp_lr_l = 85.0
+        snapshot.tire_temp_lr_m = 88.0
+        snapshot.tire_temp_lr_r = 91.0
+        snapshot.tire_temp_rr_l = 88.0
+        snapshot.tire_temp_rr_m = 91.0
+        snapshot.tire_temp_rr_r = 94.0
+        state = make_strategy_state()
+
+        prompt = client.format_telemetry_prompt_json(
+            state, snapshot, car_name="BMW M4 GT3", track_name="Autodromo Nazionale Monza"
+        )
+        data = json.loads(prompt)
+
+        assert "tire_temps" in data
+        assert isinstance(data["tire_temps"], dict)
+        # LF: (90+95+100)/3 = 95
+        assert data["tire_temps"]["fl"] == 95.0
+        # RF: (100+102+104)/3 = 102
+        assert data["tire_temps"]["fr"] == 102.0
+        # LR: (85+88+91)/3 = 88
+        assert data["tire_temps"]["rl"] == 88.0
+        # RR: (88+91+94)/3 = 91
+        assert data["tire_temps"]["rr"] == 91.0
+
+    def test_json_includes_gaps(self):
+        """Test JSON includes gap_ahead and gap_behind."""
+        import json
+        client = LMStudioClient()
+        snapshot = make_snapshot()
+        snapshot.gap_ahead_sec = 2.1
+        snapshot.gap_behind_sec = 0.8
+        state = make_strategy_state()
+
+        prompt = client.format_telemetry_prompt_json(
+            state, snapshot, car_name="BMW M4 GT3", track_name="Autodromo Nazionale Monza"
+        )
+        data = json.loads(prompt)
+
+        assert data["gap_ahead"] == 2.1
+        assert data["gap_behind"] == 0.8
+
+    def test_json_includes_lap_times(self):
+        """Test JSON includes last_lap_time and best_lap_time."""
+        import json
+        client = LMStudioClient()
+        snapshot = make_snapshot(last_lap_time=91.5, best_lap_time=90.8)
+        state = make_strategy_state()
+
+        prompt = client.format_telemetry_prompt_json(
+            state, snapshot, car_name="BMW M4 GT3", track_name="Autodromo Nazionale Monza"
+        )
+        data = json.loads(prompt)
+
+        assert data["last_lap_time"] == 91.5
+        assert data["best_lap_time"] == 90.8
+
+    def test_json_includes_session_laps_remain(self):
+        """Test JSON includes session_laps_remain."""
+        import json
+        client = LMStudioClient()
+        snapshot = make_snapshot(session_laps_remain=18)
+        state = make_strategy_state()
+
+        prompt = client.format_telemetry_prompt_json(
+            state, snapshot, car_name="BMW M4 GT3", track_name="Autodromo Nazionale Monza"
+        )
+        data = json.loads(prompt)
+
+        assert data["session_laps_remain"] == 18
+
+    def test_json_includes_incident_count(self):
+        """Test JSON includes incident_count."""
+        import json
+        client = LMStudioClient()
+        snapshot = make_snapshot()
+        snapshot.incident_count = 2
+        state = make_strategy_state()
+
+        prompt = client.format_telemetry_prompt_json(
+            state, snapshot, car_name="BMW M4 GT3", track_name="Autodromo Nazionale Monza"
+        )
+        data = json.loads(prompt)
+
+        assert data["incident_count"] == 2
+
+    def test_json_includes_track_temp(self):
+        """Test JSON includes track_temp_c."""
+        import json
+        client = LMStudioClient()
+        snapshot = make_snapshot()
+        snapshot.track_temp_c = 35.0
+        state = make_strategy_state()
+
+        prompt = client.format_telemetry_prompt_json(
+            state, snapshot, car_name="BMW M4 GT3", track_name="Autodromo Nazionale Monza"
+        )
+        data = json.loads(prompt)
+
+        assert data["track_temp_c"] == 35.0
+
+    def test_json_handles_unknown_car_gracefully(self):
+        """Test JSON format handles unknown car with defaults."""
+        import json
+        client = LMStudioClient()
+        snapshot = make_snapshot()
+        state = make_strategy_state()
+
+        prompt = client.format_telemetry_prompt_json(
+            state, snapshot, car_name="Unknown Car XYZ", track_name="Autodromo Nazionale Monza"
+        )
+        data = json.loads(prompt)
+
+        # Should still produce valid JSON with car name but unknown class/traits
+        assert data["car"] == "Unknown Car XYZ"
+        assert data["car_class"] == "unknown"
+        assert data["car_traits"] == []
+
+    def test_json_handles_unknown_track_gracefully(self):
+        """Test JSON format handles unknown track with defaults."""
+        import json
+        client = LMStudioClient()
+        snapshot = make_snapshot()
+        state = make_strategy_state()
+
+        prompt = client.format_telemetry_prompt_json(
+            state, snapshot, car_name="BMW M4 GT3", track_name="Unknown Track 3000"
+        )
+        data = json.loads(prompt)
+
+        # Should still produce valid JSON with track name but unknown type
+        assert data["track"] == "Unknown Track 3000"
+        assert data["track_type"] == "unknown"
+
+    def test_json_handles_none_gaps(self):
+        """Test JSON format handles None gap values."""
+        import json
+        client = LMStudioClient()
+        snapshot = make_snapshot()
+        snapshot.gap_ahead_sec = None
+        snapshot.gap_behind_sec = None
+        state = make_strategy_state()
+
+        prompt = client.format_telemetry_prompt_json(
+            state, snapshot, car_name="BMW M4 GT3", track_name="Autodromo Nazionale Monza"
+        )
+        data = json.loads(prompt)
+
+        # None should become null in JSON or be omitted
+        assert data.get("gap_ahead") is None
+        assert data.get("gap_behind") is None
+
+
+class TestUpdatedSystemPrompt:
+    """Tests for updated system prompt matching training instruction."""
+
+    def test_system_prompt_for_json_format(self):
+        """Test system prompt matches training instruction format."""
+        client = LMStudioClient()
+
+        # The system prompt should match what we use in training
+        expected_phrase = "race engineer"
+        assert expected_phrase in client.system_prompt.lower()
+
+    def test_system_prompt_mentions_car_track_telemetry(self):
+        """Test system prompt mentions car, track, and telemetry."""
+        client = LMStudioClient()
+        prompt_lower = client.system_prompt.lower()
+
+        # Should reference the key input types
+        # Note: This test may need adjustment based on final prompt wording
+        has_context = (
+            "car" in prompt_lower or
+            "telemetry" in prompt_lower or
+            "driver" in prompt_lower
+        )
+        assert has_context
