@@ -112,29 +112,29 @@ class TestLLMTriggers:
 
         state = make_strategy_state(urgency=Urgency.OK)
 
-        # Lap 5 should trigger
-        should_trigger = engine._should_trigger_llm(
+        # Lap 5 should trigger (returns reason string)
+        trigger_reason = engine._get_trigger_reason(
             snapshot=make_snapshot(lap=5),
             state=state,
             last_lap=4,
         )
-        assert should_trigger is True
+        assert trigger_reason is not None
 
-        # Lap 6 should not trigger
-        should_trigger = engine._should_trigger_llm(
+        # Lap 6 should not trigger (returns None)
+        trigger_reason = engine._get_trigger_reason(
             snapshot=make_snapshot(lap=6),
             state=state,
             last_lap=5,
         )
-        assert should_trigger is False
+        assert trigger_reason is None
 
         # Lap 10 should trigger
-        should_trigger = engine._should_trigger_llm(
+        trigger_reason = engine._get_trigger_reason(
             snapshot=make_snapshot(lap=10),
             state=state,
             last_lap=9,
         )
-        assert should_trigger is True
+        assert trigger_reason is not None
 
     @pytest.mark.asyncio
     async def test_triggers_on_urgency_change_to_warning(self):
@@ -145,12 +145,12 @@ class TestLLMTriggers:
 
         state = make_strategy_state(urgency=Urgency.WARNING)
 
-        should_trigger = engine._should_trigger_llm(
+        trigger_reason = engine._get_trigger_reason(
             snapshot=make_snapshot(lap=3),
             state=state,
             last_lap=2,
         )
-        assert should_trigger is True
+        assert trigger_reason is not None
 
     @pytest.mark.asyncio
     async def test_triggers_on_urgency_change_to_critical(self):
@@ -161,12 +161,12 @@ class TestLLMTriggers:
 
         state = make_strategy_state(urgency=Urgency.CRITICAL)
 
-        should_trigger = engine._should_trigger_llm(
+        trigger_reason = engine._get_trigger_reason(
             snapshot=make_snapshot(lap=3),
             state=state,
             last_lap=2,
         )
-        assert should_trigger is True
+        assert trigger_reason is not None
 
     @pytest.mark.asyncio
     async def test_critical_bypasses_cooldown(self):
@@ -177,14 +177,14 @@ class TestLLMTriggers:
 
         state = make_strategy_state(urgency=Urgency.CRITICAL)
 
-        # Even with recent LLM call, critical should trigger
-        should_trigger = engine._should_trigger_llm(
+        # Critical always triggers regardless of cooldown
+        trigger_reason = engine._get_trigger_reason(
             snapshot=make_snapshot(lap=3),
             state=state,
             last_lap=2,
-            ignore_cooldown=True,  # Critical ignores cooldown
         )
-        assert should_trigger is True
+        assert trigger_reason is not None
+        assert "CRITICAL" in trigger_reason
 
 
 class TestLLMCooldown:
@@ -203,12 +203,12 @@ class TestLLMCooldown:
         state = make_strategy_state(urgency=Urgency.OK)
 
         # Should not trigger due to cooldown (non-critical)
-        should_trigger = engine._should_trigger_llm(
+        trigger_reason = engine._get_trigger_reason(
             snapshot=make_snapshot(lap=2),
             state=state,
             last_lap=1,
         )
-        assert should_trigger is False
+        assert trigger_reason is None
 
     @pytest.mark.asyncio
     async def test_triggers_after_cooldown_expires(self):
@@ -222,12 +222,12 @@ class TestLLMCooldown:
         state = make_strategy_state(urgency=Urgency.OK)
 
         # Should trigger, cooldown expired
-        should_trigger = engine._should_trigger_llm(
+        trigger_reason = engine._get_trigger_reason(
             snapshot=make_snapshot(lap=2),
             state=state,
             last_lap=1,
         )
-        assert should_trigger is True
+        assert trigger_reason is not None
 
 
 class TestFallbackMessages:
@@ -244,8 +244,9 @@ class TestFallbackMessages:
             pit_reason="Fuel critical",
             laps_of_fuel=1.5,
         )
+        snapshot = make_snapshot(lap=5, position=3)
 
-        fallback = engine._get_fallback_message(state)
+        fallback = engine._get_fallback_message(state, snapshot)
         assert fallback is not None
         assert len(fallback) > 0
 
@@ -259,8 +260,9 @@ class TestFallbackMessages:
             urgency=Urgency.CRITICAL,
             pit_reason="Fuel critical - pit now",
         )
+        snapshot = make_snapshot(lap=5, position=3)
 
-        fallback = engine._get_fallback_message(state)
+        fallback = engine._get_fallback_message(state, snapshot)
         assert "fuel" in fallback.lower() or "pit" in fallback.lower()
 
     @pytest.mark.asyncio
@@ -273,8 +275,9 @@ class TestFallbackMessages:
             urgency=Urgency.CRITICAL,
             pit_reason="Tires critical - pit now",
         )
+        snapshot = make_snapshot(lap=5, position=3)
 
-        fallback = engine._get_fallback_message(state)
+        fallback = engine._get_fallback_message(state, snapshot)
         assert "tire" in fallback.lower() or "pit" in fallback.lower()
 
 

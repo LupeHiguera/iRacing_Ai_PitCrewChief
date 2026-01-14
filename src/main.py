@@ -39,6 +39,8 @@ class StrategyEngine:
         self._last_lap: int = 0
         self._last_urgency: Urgency = Urgency.OK
         self._last_llm_call_time: float = 0.0
+        self._car_name: str = ""
+        self._track_name: str = ""
 
     async def start(self) -> None:
         """Initialize components and start the engine."""
@@ -125,17 +127,17 @@ class StrategyEngine:
         print("Connected to iRacing!")
 
         # Get track and car info
-        track = self._telemetry.get_track_name()
-        car = self._telemetry.get_car_name()
-        print(f"Track: {track} | Car: {car}")
+        self._track_name = self._telemetry.get_track_name()
+        self._car_name = self._telemetry.get_car_name()
+        print(f"Track: {self._track_name} | Car: {self._car_name}")
 
         # Start logging session
         if self._logger:
-            self._logger.start_session(track, car)
+            self._logger.start_session(self._track_name, self._car_name)
 
         # Set overlay session info
         if self._overlay:
-            self._overlay.set_session_info(track, car, "Race")
+            self._overlay.set_session_info(self._track_name, self._car_name, "Race")
 
         # Announce startup
         await self._speak("Race strategist online. Good luck out there.")
@@ -279,8 +281,10 @@ class StrategyEngine:
         event: RaceEvent,
     ) -> None:
         """Handle a detected event - call LLM or use fallback."""
-        # Build prompt with event context
-        prompt = self._llm.format_telemetry_prompt(state, snapshot, event)
+        # Build prompt with JSON format matching training data
+        prompt = self._llm.format_telemetry_prompt_json(
+            state, snapshot, self._car_name, self._track_name
+        )
 
         # Broadcast "thinking" state to overlay
         if self._overlay:

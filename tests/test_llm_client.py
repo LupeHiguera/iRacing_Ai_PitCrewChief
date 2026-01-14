@@ -272,21 +272,13 @@ class TestSystemPrompt:
         assert "concise" in prompt_lower or "brief" in prompt_lower or "short" in prompt_lower
 
     def test_system_prompt_suitable_for_tts(self):
-        """Test system prompt mentions TTS/voice compatibility."""
+        """Test system prompt is suitable for race engineer role."""
         client = LMStudioClient()
         prompt_lower = client.system_prompt.lower()
 
-        # Should mention voice/speech/TTS or no formatting
-        has_voice_mention = any(
-            word in prompt_lower
-            for word in ["voice", "speech", "tts", "spoken", "radio"]
-        )
-        has_format_restriction = any(
-            word in prompt_lower
-            for word in ["no bullet", "no formatting", "plain text"]
-        )
-
-        assert has_voice_mention or has_format_restriction
+        # Should mention race engineer role and brevity
+        assert "race engineer" in prompt_lower
+        assert "callout" in prompt_lower or "brief" in prompt_lower
 
 
 class TestLLMResponse:

@@ -10,14 +10,9 @@ from typing import Optional
 
 import aiohttp
 
-from typing import TYPE_CHECKING
-
 from .telemetry import TelemetrySnapshot
 from .strategy import StrategyState, Urgency
 from .metadata import get_car_metadata, get_track_metadata
-
-if TYPE_CHECKING:
-    from .event_detector import RaceEvent
 
 
 @dataclass
@@ -40,10 +35,8 @@ class LMStudioClient:
         self._session: Optional[aiohttp.ClientSession] = None
 
         self.system_prompt = (
-            "You are a race engineer giving radio updates to your driver. "
-            "Be concise - max 2 sentences. Use plain text suitable for voice/TTS. "
-            "No bullets, no formatting. Be calm but urgent when needed. "
-            "Give actionable advice."
+            "You are a race engineer. Given the car, track, and telemetry, "
+            "provide a brief callout to the driver."
         )
 
     async def _ensure_session(self) -> aiohttp.ClientSession:
@@ -179,7 +172,6 @@ class LMStudioClient:
         snapshot: TelemetrySnapshot,
         car_name: str,
         track_name: str,
-        event: Optional["RaceEvent"] = None,
     ) -> str:
         """
         Format telemetry into JSON format matching training data schema.
@@ -192,7 +184,6 @@ class LMStudioClient:
             snapshot: Current telemetry snapshot.
             car_name: Car name from iRacing.
             track_name: Track name from iRacing.
-            event: Optional event that triggered this call.
 
         Returns:
             JSON string with all telemetry fields.
@@ -200,9 +191,11 @@ class LMStudioClient:
         # Get car metadata
         car_meta = get_car_metadata(car_name)
         if car_meta:
+            car_short_name = car_meta.get("name", car_name)
             car_class = car_meta.get("class", "unknown")
             car_traits = car_meta.get("traits", [])
         else:
+            car_short_name = car_name
             car_class = "unknown"
             car_traits = []
 
@@ -226,7 +219,7 @@ class LMStudioClient:
         # Build the data structure
         data = {
             # Car info
-            "car": car_name,
+            "car": car_short_name,
             "car_class": car_class,
             "car_traits": car_traits,
 
