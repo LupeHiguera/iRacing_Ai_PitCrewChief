@@ -862,7 +862,7 @@
             document.getElementById('aiStatusDot').classList.add('thinking');
             document.getElementById('aiStatusText').textContent = 'Thinking...';
             document.getElementById('promptText').textContent = d.prompt_preview || '...';
-            document.getElementById('modelName').textContent = d.model || 'Mistral 7B';
+            document.getElementById('modelName').textContent = d.model || 'Llama 3.1 8B';
         }
 
         function showAIMessage(d) {
@@ -872,7 +872,7 @@
             document.getElementById('promptText').textContent = d.prompt_preview || '--';
             document.getElementById('aiLatency').textContent = `${d.latency_ms}ms`;
             document.getElementById('aiTrigger').textContent = d.trigger_reason.split(':')[0] || '--';
-            document.getElementById('modelName').textContent = d.model || 'Mistral 7B';
+            document.getElementById('modelName').textContent = d.model || 'Llama 3.1 8B';
 
             // Update message panel
             const panel = document.getElementById('aiPanel');

@@ -6,8 +6,9 @@ A real-time AI race engineer that provides voice strategy updates during iRacing
 
 - **Real-time telemetry** - Reads 43 telemetry fields from iRacing via pyirsdk
 - **Smart strategy calculations** - Tracks fuel consumption, calculates pit windows, monitors tire degradation
-- **Event detection** - Detects 20+ race situations (battles, lockups, position changes, flags, etc.)
-- **LLM-powered callouts** - Natural language updates via local Mistral 7B inference
+- **Event detection** - Detects 25 race situations (battles, lockups, position changes, flags, etc.)
+- **Car/Track metadata** - 60+ cars and 65+ tracks with corner mappings for contextual callouts
+- **LLM-powered callouts** - Natural language updates via local Llama 3.1 8B inference
 - **Voice output** - Text-to-speech using Piper for hands-free racing
 - **Session logging** - Captures telemetry and LLM responses for fine-tuning data
 
@@ -25,13 +26,14 @@ iRacing → Telemetry Reader → Strategy Calculator ─┬→ Event Detector �
 
 ## Event Detection
 
-The AI race engineer detects and responds to real racing situations:
+The AI race engineer detects and responds to 25 real racing situations:
 
 | Category | Events | Example Callout |
 |----------|--------|-----------------|
 | **Position** | Gained/lost (batched) | "Gained 3 positions, now P6" |
 | **Battle** | Gap closing, Defend, Clear | "Defend! 0.5 behind" |
 | **Dirty Air** | Following too close | "In dirty air, manage the temps" |
+| **Clean Air** | Gap opens up | "Clean air now, push" |
 | **Tire Temps** | Cold, Optimal, Hot | "Fronts running hot, ease the braking" |
 | **Lockup/Spin** | Sudden temp spike | "Lockup! Easy on the brakes" |
 | **Pace** | Dropping, Improving | "Pace dropping, tires going off?" |
@@ -43,12 +45,39 @@ The AI race engineer detects and responds to real racing situations:
 
 Position changes are **batched** to avoid lap 1 chaos spam - the system waits for positions to settle before reporting.
 
+## Car & Track Metadata
+
+The system includes metadata for **60+ cars** and **65+ tracks** with corner mappings:
+
+### Car Coverage
+| Category | Count | Examples |
+|----------|-------|----------|
+| Production/Entry | 11 | MX-5 Cup, BMW M2 CSR, Spec Racer Ford |
+| TCR/Touring | 4 | Audi RS 3 LMS, Honda Civic Type R TCR |
+| GT4 | 6 | Porsche 718 Cayman, Mercedes-AMG GT4 |
+| GT3 | 12 | Ferrari 296/488, BMW M4, Porsche 911 GT3 R |
+| GTE | 5 | Corvette C8.R, Ferrari 488 GTE |
+| GTP/LMDh/Hypercar | 5 | Ferrari 499P, Porsche 963, BMW M Hybrid V8 |
+| F1 | 4 | Mercedes W12/W13, McLaren MP4-30 |
+| IndyCar/Formula | 9 | Dallara IR18, Super Formula SF23, Dallara F3 |
+| Ovals | 26 | Superspeedways, Intermediates, Short Tracks |
+
+### Track Coverage
+| Region/Type | Count | Examples |
+|-------------|-------|----------|
+| European Road | 17 | Spa, Monza, Silverstone, Nurburgring |
+| North American Road | 13 | Road America, Laguna Seca, COTA |
+| Japanese/Asian | 5 | Suzuka, Fuji, Okayama |
+| Ovals | 26 | Daytona, Talladega, Bristol, Martinsville |
+
+Each track includes **corner mappings** with lap percentage positions for contextual callouts.
+
 ## Requirements
 
 - Windows (iRacing is Windows-only)
 - Python 3.10+
 - [iRacing](https://www.iracing.com/) subscription
-- [LM Studio](https://lmstudio.ai/) with Mistral 7B Instruct
+- [LM Studio](https://lmstudio.ai/) with Llama 3.1 8B Instruct
 - [Piper TTS](https://github.com/rhasspy/piper/releases)
 
 ## Installation
@@ -91,7 +120,7 @@ tire_temp_cold_c: float = 60.0          # Cold tire warning
 ## Usage
 
 1. Start iRacing and load into a session
-2. Start LM Studio with Mistral 7B Instruct model
+2. Start LM Studio with Llama 3.1 8B Instruct model
 3. Run the strategist:
 
 ```bash
@@ -106,8 +135,9 @@ The AI will provide voice updates based on race events - not just periodic lap u
 src/
 ├── telemetry.py      # iRacing data via pyirsdk (43 fields)
 ├── strategy.py       # Fuel/tire calculations
-├── event_detector.py # Detects 20+ race events
-├── llm_client.py     # LM Studio API client
+├── event_detector.py # Detects 25 race events
+├── llm_client.py     # LM Studio API client + JSON format
+├── metadata.py       # 60+ cars, 65+ tracks with corner mappings
 ├── tts.py            # Piper TTS wrapper
 ├── logger.py         # Session logging to gzip JSON
 └── main.py           # Main integration
@@ -117,7 +147,9 @@ data/
 └── synthetic/        # Generated training data (for fine-tuning)
 
 tests/
-└── test_*.py         # 30+ unit tests
+├── test_telemetry.py    # 30 tests
+├── test_metadata.py     # 35 tests
+└── test_llm_client.py   # 45 tests (includes JSON format)
 ```
 
 ## Data Collection
@@ -125,11 +157,11 @@ tests/
 Sessions are automatically logged to `data/sessions/` as gzip-compressed JSON files.
 
 **Current stats:**
-- 8+ sessions logged
+- 16 sessions logged
 - 3,300+ telemetry samples
-- 35+ LLM calls with prompts/responses/latency
-- Tracks: Lime Rock, Okayama, Mugello, Monza
-- Cars: Mazda MX-5, BMW M2 CS, BMW M4 GT3, Dallara F3
+- 200+ LLM calls with prompts/responses/latency
+- Tracks: Lime Rock, Okayama, Mugello, Monza, Red Bull Ring
+- Cars: Mazda MX-5, BMW M2 CS, BMW M4 GT3 EVO
 
 ### Telemetry Fields (43 total)
 
@@ -164,13 +196,15 @@ Sessions are automatically logged to `data/sessions/` as gzip-compressed JSON fi
 pytest tests/ -v
 ```
 
+110+ tests covering telemetry, metadata, and LLM client functionality.
+
 ## Tech Stack
 
 - **pyirsdk** - iRacing telemetry SDK
 - **aiohttp** - Async HTTP for LLM calls
 - **Piper** - Fast local TTS
 - **LM Studio** - Local LLM inference
-- **Mistral 7B** - Base language model (to be fine-tuned)
+- **Llama 3.1 8B** - Base language model (to be fine-tuned)
 
 ## Roadmap
 
@@ -181,15 +215,18 @@ pytest tests/ -v
 - [x] TTS output with Piper
 - [x] Session logging
 - [x] Gap tracking to cars ahead/behind
-- [x] Event detection system (20+ event types)
+- [x] Event detection system (25 event types)
+- [x] Car metadata (60+ cars with class, traits, advice style)
+- [x] Track metadata (65+ tracks with corner mappings)
+- [x] JSON prompt format for fine-tuned model
 
-### Week 2: Data Collection
-- [x] 8 sessions logged
-- [ ] Generate 1000+ synthetic training examples
-- [ ] Collect 10+ total race sessions
+### Week 2: Data Collection (In Progress)
+- [x] 16 sessions logged
+- [ ] Generate 10,000+ synthetic training examples
+- [ ] Validate response quality and grounding
 
 ### Week 3: Fine-tuning
-- [ ] Fine-tune Mistral 7B using QLoRA
+- [ ] Fine-tune Llama 3.1 8B using QLoRA
 - [ ] Train on race engineer responses
 - [ ] Export to GGUF for LM Studio
 
@@ -205,6 +242,7 @@ pytest tests/ -v
 | Tire temps static on some cars | MX-5/M2 lack TPMS | Use GT3/GTE cars |
 | Tire wear minimal in short sessions | Not enough laps | Longer stints |
 | Lockup detection needs GT3+ | Lower-tier cars don't report temps | Use GT3/GTE/F3 |
+| Tire temps may cache in AI races | iRacing SDK quirk | Use official/hosted races |
 
 ## License
 

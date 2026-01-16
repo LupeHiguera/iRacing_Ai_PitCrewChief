@@ -199,29 +199,28 @@ class TestFormatTelemetryPrompt:
         assert "3" in prompt or "P3" in prompt  # position
         assert "8" in prompt  # laps of fuel
 
-    def test_includes_urgency_in_prompt(self):
-        """Test prompt reflects urgency level."""
-        client = LMStudioClient()
-        snapshot = make_snapshot()
-        state = make_strategy_state(urgency=Urgency.CRITICAL, pit_reason="Low fuel")
+    def test_no_semantic_labels_in_prompt(self):
+        """Test prompt contains raw data, not semantic labels like 'CRITICAL' or 'Warning'.
 
-        prompt = client.format_telemetry_prompt(state, snapshot)
-
-        assert "critical" in prompt.lower() or "urgent" in prompt.lower()
-
-    def test_includes_pit_reason_when_needed(self):
-        """Test prompt includes pit reason when needs_pit is True."""
+        The LLM should infer situations from raw telemetry data.
+        """
         client = LMStudioClient()
         snapshot = make_snapshot()
         state = make_strategy_state(
-            needs_pit=True,
-            pit_reason="Fuel critical",
             urgency=Urgency.CRITICAL,
+            pit_reason="Low fuel",
+            needs_pit=True,
         )
 
         prompt = client.format_telemetry_prompt(state, snapshot)
 
-        assert "fuel" in prompt.lower()
+        # Should NOT contain semantic labels - LLM infers from data
+        assert "CRITICAL" not in prompt
+        assert "Warning" not in prompt
+        assert "EVENT:" not in prompt
+        # Should still contain raw data
+        assert "Fuel:" in prompt
+        assert "Lap" in prompt
 
     def test_includes_tire_info(self):
         """Test prompt includes tire wear information."""

@@ -114,15 +114,16 @@ class LMStudioClient:
         self,
         state: StrategyState,
         snapshot: TelemetrySnapshot,
-        event: Optional["RaceEvent"] = None,
     ) -> str:
         """
         Format telemetry and strategy state into a prompt for the LLM.
 
+        The LLM should infer situations (defend, fuel critical, tire issues)
+        from the raw data rather than being given semantic labels.
+
         Args:
             state: Current strategy state.
             snapshot: Current telemetry snapshot.
-            event: Optional event that triggered this call.
 
         Returns:
             Formatted prompt string.
@@ -139,30 +140,12 @@ class LMStudioClient:
         elif snapshot.session_time_remain > 0:
             mins_remain = int(snapshot.session_time_remain // 60)
             lines.append(f"Session: {mins_remain} minutes remaining")
-        # Omit session line if neither is useful
 
         # Add gap info if available
         if snapshot.gap_behind_sec is not None:
             lines.append(f"Gap behind: {snapshot.gap_behind_sec:.1f}s")
         if snapshot.gap_ahead_sec is not None:
             lines.append(f"Gap ahead: {snapshot.gap_ahead_sec:.1f}s")
-
-        # Add event context if provided
-        if event:
-            lines.append(f"EVENT: {event.message}")
-            # Add event-specific context
-            if event.data:
-                for key, value in event.data.items():
-                    if key not in ["gap_behind", "gap_ahead"]:  # Avoid duplicates
-                        lines.append(f"  {key}: {value}")
-
-        # Add urgency context
-        if state.urgency == Urgency.CRITICAL:
-            lines.append(f"CRITICAL: {state.pit_reason}")
-        elif state.urgency == Urgency.WARNING:
-            lines.append(f"Warning: {state.pit_reason}")
-        elif state.needs_pit:
-            lines.append(f"Pit recommended: {state.pit_reason}")
 
         return "\n".join(lines)
 
