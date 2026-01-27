@@ -1,0 +1,110 @@
+[
+  {
+    "name": "Fuel Critical - Imola",
+    "category": "fuel_critical",
+    "input_summary": "Ferrari 296 GT3 @ Imola, P5, 1.5 laps fuel",
+    "base_response": "\"Hey, driver! It's your engineer. We're on lap 22, 45% through the session, and you're currently 5th place. You've got about 1.5 laps of fuel left, and the tires are looking good, but we're starting to see some wear on the rears, especially the left one. The temperatures are around 94\u00b0C on the",
+    "finetuned_response": "\"Push through Villeneuve, the downforce will hold you. Gap behind one-five. Fuel critical, one point five laps remaining, box next time by.\"",
+    "base_metrics": {
+      "word_count": 53,
+      "is_concise": false,
+      "has_telemetry_reference": true,
+      "has_track_reference": false,
+      "has_car_appropriate_advice": false,
+      "expected_elements_found": 1,
+      "expected_elements_total": 3,
+      "contains_hallucination": false
+    },
+    "finetuned_metrics": {
+      "word_count": 22,
+      "is_concise": true,
+      "has_telemetry_reference": false,
+      "has_track_reference": false,
+      "has_car_appropriate_advice": false,
+      "expected_elements_found": 2,
+      "expected_elements_total": 3,
+      "contains_hallucination": false
+    }
+  },
+  {
+    "name": "Battle Mode - Nurburgring GP",
+    "category": "position_battle",
+    "input_summary": "Mercedes-AMG GT3 @ Nurburgring GP, P3, 15.0 laps fuel",
+    "base_response": "Here's a brief callout to the driver:\n\n\"Hey, great run so far! You're in P3, just 0.4 seconds off the leader. The tires are looking good, a bit of wear on the fronts and rears, but nothing to worry about. The temperature's a bit high, but we're still within a safe range. The brakes are feeling strong, and",
+    "finetuned_response": "\"Kesselchen: trust the front end, brake deep and rotate the car early. You're stable through there, carry the speed. Gap behind is safe.\"",
+    "base_metrics": {
+      "word_count": 58,
+      "is_concise": false,
+      "has_telemetry_reference": true,
+      "has_track_reference": false,
+      "has_car_appropriate_advice": false,
+      "expected_elements_found": 0,
+      "expected_elements_total": 4,
+      "contains_hallucination": false
+    },
+    "finetuned_metrics": {
+      "word_count": 23,
+      "is_concise": true,
+      "has_telemetry_reference": false,
+      "has_track_reference": false,
+      "has_car_appropriate_advice": true,
+      "expected_elements_found": 1,
+      "expected_elements_total": 4,
+      "contains_hallucination": false
+    }
+  },
+  {
+    "name": "Tire Management - Barcelona",
+    "category": "tire_warning",
+    "input_summary": "Porsche 911 GT3 R (992) @ Barcelona, P7, 12.0 laps fuel",
+    "base_response": "\"Alright, driver! We're on lap 18, 35% distance covered. You're currently 7th place, with 12 laps of fuel left. Tire wear is looking good, all corners around 40-50%, but we're starting to see some heat buildup, especially in the rear left and front right tires. Temperatures are getting high, 96-108 degrees Celsius",
+    "finetuned_response": "\"P7, gap ahead 1.8. Use that rear weight to rotate the car through Lesmos\u2014trail brake deep, let it pivot, then hard on throttle.\"",
+    "base_metrics": {
+      "word_count": 52,
+      "is_concise": false,
+      "has_telemetry_reference": true,
+      "has_track_reference": true,
+      "has_car_appropriate_advice": true,
+      "expected_elements_found": 3,
+      "expected_elements_total": 4,
+      "contains_hallucination": false
+    },
+    "finetuned_metrics": {
+      "word_count": 23,
+      "is_concise": true,
+      "has_telemetry_reference": true,
+      "has_track_reference": false,
+      "has_car_appropriate_advice": true,
+      "expected_elements_found": 0,
+      "expected_elements_total": 4,
+      "contains_hallucination": false
+    }
+  },
+  {
+    "name": "Pace Feedback - Suzuka",
+    "category": "pace_feedback",
+    "input_summary": "McLaren 720S GT3 @ Suzuka, P4, 20.0 laps fuel",
+    "base_response": "\"Alright, driver, this is your engineer. We're on lap 8, 68% distance. You're currently 4th, with 20 laps of fuel left. Tire wear is looking good, with some slight wear on the front right and rear left. Temperatures are a bit high, especially on the front right. You've got a 4.5 second gap to the",
+    "finetuned_response": "\"P4, gap behind 5.2. Trust the high downforce through Dunlop Corner, carry more speed in. Front right temps climbing, 92 degrees.\"",
+    "base_metrics": {
+      "word_count": 55,
+      "is_concise": false,
+      "has_telemetry_reference": true,
+      "has_track_reference": false,
+      "has_car_appropriate_advice": false,
+      "expected_elements_found": 2,
+      "expected_elements_total": 4,
+      "contains_hallucination": false
+    },
+    "finetuned_metrics": {
+      "word_count": 21,
+      "is_concise": true,
+      "has_telemetry_reference": true,
+      "has_track_reference": true,
+      "has_car_appropriate_advice": false,
+      "expected_elements_found": 0,
+      "expected_elements_total": 4,
+      "contains_hallucination": false
+    }
+  }
+]
