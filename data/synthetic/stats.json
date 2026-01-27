@@ -1,0 +1,17 @@
+{
+  "total_generated": 48,
+  "api_failures": 0,
+  "validation_failures": 2,
+  "category_distribution": {
+    "position_battle": 5,
+    "tire_critical": 4,
+    "fuel_warning": 9,
+    "fuel_critical": 9,
+    "pit_approach": 3,
+    "pace_feedback": 3,
+    "tire_cold": 5,
+    "routine": 4,
+    "gap_management": 2,
+    "tire_warning": 4
+  }
+}

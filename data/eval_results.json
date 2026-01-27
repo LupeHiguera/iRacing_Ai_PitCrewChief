@@ -1,0 +1,56 @@
+[
+  {
+    "name": "Fuel Critical - Imola",
+    "category": "fuel_critical",
+    "input_summary": "Ferrari 296 GT3 @ Imola, P5, 1.5 laps fuel",
+    "base_response": "\"Hey driver, this is your engineer. We're on lap 22, 45% through the stint. You're in 5th place, with 1.5 laps of fuel left. Tire wear is looking good, with the rear left being the only one that's a bit worn, but the temps are still within a good range. The gap to the car in front is",
+    "finetuned_response": "Box this lap, critical fuel. We'll balance those fronts and send you back out. Gap behind is one-five, be aggressive on exit. Box this lap.",
+    "base_metrics": {
+      "word_count": 58,
+      "is_concise": false,
+      "has_telemetry_reference": true,
+      "has_track_reference": false,
+      "has_car_appropriate_advice": false,
+      "expected_elements_found": 1,
+      "expected_elements_total": 3,
+      "contains_hallucination": false
+    },
+    "finetuned_metrics": {
+      "word_count": 25,
+      "is_concise": true,
+      "has_telemetry_reference": false,
+      "has_track_reference": false,
+      "has_car_appropriate_advice": true,
+      "expected_elements_found": 2,
+      "expected_elements_total": 3,
+      "contains_hallucination": false
+    }
+  },
+  {
+    "name": "Battle Mode - Nurburgring GP",
+    "category": "position_battle",
+    "input_summary": "Mercedes-AMG GT3 @ Nurburgring GP, P3, 15.0 laps fuel",
+    "base_response": "\"Hey driver, we're looking good on this lap, 3rd position with a 0.4 second gap to the car ahead. Tire wear is moderate, front left's a bit worn but still in the green, and the rears are okay. Temps are stable, around 90-95\u00b0C. You've got 15 laps left on fuel and 20 laps remaining in",
+    "finetuned_response": "P3, gap four-tenths. Front-right tire showing twenty-two percent wear, manage entry temperatures through Bus Stop and Hatzenbach. Fuel good to the end. Push now.",
+    "base_metrics": {
+      "word_count": 55,
+      "is_concise": false,
+      "has_telemetry_reference": true,
+      "has_track_reference": false,
+      "has_car_appropriate_advice": true,
+      "expected_elements_found": 2,
+      "expected_elements_total": 4,
+      "contains_hallucination": false
+    },
+    "finetuned_metrics": {
+      "word_count": 24,
+      "is_concise": true,
+      "has_telemetry_reference": true,
+      "has_track_reference": false,
+      "has_car_appropriate_advice": true,
+      "expected_elements_found": 2,
+      "expected_elements_total": 4,
+      "contains_hallucination": false
+    }
+  }
+]

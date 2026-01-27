@@ -1,0 +1,218 @@
+[
+  {
+    "name": "Fuel Critical - Imola",
+    "category": "fuel_critical",
+    "input_summary": "Ferrari 296 GT3 @ Imola, P5, 1.5 laps fuel",
+    "base_response": "\"Alright, driver, here's the situation: we're on lap 22, 45% into the stint, and you're in 5th place. You've got 1.5 laps of fuel left. Tire wear is moderate, with the rears showing some signs of degradation. Temps are in the green, but we're seeing some heat build-up on the rears,",
+    "finetuned_response": "Box this lap, box this lap. Fuel critical at one-point-five remaining. We'll take four tires, you'll rejoin P7. Push through Rivazza, aggressive on throttle out. Go.",
+    "base_metrics": {
+      "word_count": 51,
+      "is_concise": false,
+      "has_telemetry_reference": true,
+      "has_track_reference": false,
+      "has_car_appropriate_advice": false,
+      "expected_elements_found": 1,
+      "expected_elements_total": 3,
+      "contains_hallucination": false
+    },
+    "finetuned_metrics": {
+      "word_count": 26,
+      "is_concise": true,
+      "has_telemetry_reference": true,
+      "has_track_reference": false,
+      "has_car_appropriate_advice": false,
+      "expected_elements_found": 2,
+      "expected_elements_total": 3,
+      "contains_hallucination": false
+    }
+  },
+  {
+    "name": "Battle Mode - Nurburgring GP",
+    "category": "position_battle",
+    "input_summary": "Mercedes-AMG GT3 @ Nurburgring GP, P3, 15.0 laps fuel",
+    "base_response": "\"Alright, driver! We're looking good. You're in P3, 0.4 seconds behind the car in front. Your tires are holding up well, but the rears are starting to get a bit warm, especially the right rear. You're running a bit cooler than the best lap time, so let's try to push a bit harder. The track's still relatively cool,",
+    "finetuned_response": "P3, gap four-tenths. Front right high at 22%, manage brake temps into Hatzenbach. Fuel good to the end. Push now.",
+    "base_metrics": {
+      "word_count": 58,
+      "is_concise": false,
+      "has_telemetry_reference": true,
+      "has_track_reference": false,
+      "has_car_appropriate_advice": false,
+      "expected_elements_found": 1,
+      "expected_elements_total": 4,
+      "contains_hallucination": false
+    },
+    "finetuned_metrics": {
+      "word_count": 20,
+      "is_concise": true,
+      "has_telemetry_reference": true,
+      "has_track_reference": false,
+      "has_car_appropriate_advice": false,
+      "expected_elements_found": 2,
+      "expected_elements_total": 4,
+      "contains_hallucination": false
+    }
+  },
+  {
+    "name": "Tire Management - Barcelona",
+    "category": "tire_warning",
+    "input_summary": "Porsche 911 GT3 R (992) @ Barcelona, P7, 12.0 laps fuel",
+    "base_response": "Here's a brief callout to the driver:\n\n\"Hey, good job holding 7th place on lap 18! You're looking good for a 35% completion of the lap. Fuel's still looking strong with 12 laps to go. Tires are in decent shape, but the rears are getting a bit worn, so be careful not to push too hard. The trail brake",
+    "finetuned_response": "Right front at one-oh-eight degrees and fifty-two percent wear. Ease off trail braking into Turn 5, let the car roll more speed through. Gap ahead one-eight. Fifteen to go.",
+    "base_metrics": {
+      "word_count": 59,
+      "is_concise": false,
+      "has_telemetry_reference": true,
+      "has_track_reference": false,
+      "has_car_appropriate_advice": true,
+      "expected_elements_found": 1,
+      "expected_elements_total": 4,
+      "contains_hallucination": false
+    },
+    "finetuned_metrics": {
+      "word_count": 29,
+      "is_concise": true,
+      "has_telemetry_reference": true,
+      "has_track_reference": true,
+      "has_car_appropriate_advice": true,
+      "expected_elements_found": 2,
+      "expected_elements_total": 4,
+      "contains_hallucination": false
+    }
+  },
+  {
+    "name": "Pace Feedback - Suzuka",
+    "category": "pace_feedback",
+    "input_summary": "McLaren 720S GT3 @ Suzuka, P4, 20.0 laps fuel",
+    "base_response": "Here's a brief callout to the driver:\n\n\"Hey, good lap so far! You're pushing the 720S GT3 hard on this mixed track at Suzuka. Your pace is looking strong, just 1.3 seconds off your best lap. Fuel's looking good, 20 laps to go. Tire wear's not too bad, but the fronts are getting a bit hot,",
+    "finetuned_response": "P4, gap ahead 4.5. Front-right tire warming up nicely, use it through Degner. Fuel good to the end. Keep smooth and consistent.",
+    "base_metrics": {
+      "word_count": 56,
+      "is_concise": false,
+      "has_telemetry_reference": true,
+      "has_track_reference": true,
+      "has_car_appropriate_advice": false,
+      "expected_elements_found": 3,
+      "expected_elements_total": 4,
+      "contains_hallucination": false
+    },
+    "finetuned_metrics": {
+      "word_count": 22,
+      "is_concise": true,
+      "has_telemetry_reference": true,
+      "has_track_reference": false,
+      "has_car_appropriate_advice": false,
+      "expected_elements_found": 1,
+      "expected_elements_total": 4,
+      "contains_hallucination": false
+    }
+  },
+  {
+    "name": "Defend Under Pressure - Road America",
+    "category": "position_battle",
+    "input_summary": "BMW M4 GT3 @ Road America, P2, 8.0 laps fuel",
+    "base_response": "\"Hey driver, we're looking good out there! You're running a strong pace, just 0.7 seconds off your best lap time. Your tire temps are looking good, but your rears are getting a bit warm, especially the right rear, so let's ease off the throttle a bit in the high-speed corners. The track's getting hotter, so be mindful of that. You",
+    "finetuned_response": "P2, car behind three-tenths. Fuel critical - eight laps left, ten to go. Push now, use that brake balance through Turn 14. We're aero dependent. Go!",
+    "base_metrics": {
+      "word_count": 60,
+      "is_concise": false,
+      "has_telemetry_reference": true,
+      "has_track_reference": true,
+      "has_car_appropriate_advice": false,
+      "expected_elements_found": 0,
+      "expected_elements_total": 3,
+      "contains_hallucination": false
+    },
+    "finetuned_metrics": {
+      "word_count": 26,
+      "is_concise": true,
+      "has_telemetry_reference": true,
+      "has_track_reference": true,
+      "has_car_appropriate_advice": false,
+      "expected_elements_found": 1,
+      "expected_elements_total": 3,
+      "contains_hallucination": false
+    }
+  },
+  {
+    "name": "Pit Approach - Le Mans",
+    "category": "pit_approach",
+    "input_summary": "Porsche 963 @ Le Mans, P3, 0.8 laps fuel",
+    "base_response": "\"Hold station, we're in a great position. You're running 92% of the target pace, and the gap to the car ahead is just 8.5 seconds. Your tires are looking good, with the fronts at 58 and the rears at 52. Fuel's getting low, so let's be mindful of that. We're at 80% fuel, so you",
+    "finetuned_response": "Box this lap, critical fuel. We'll take four tires, quick splash. You'll rejoin P4, twelve seconds back, but we'll recover in the stint. Push through Mulsanne. Box this lap.",
+    "base_metrics": {
+      "word_count": 55,
+      "is_concise": false,
+      "has_telemetry_reference": true,
+      "has_track_reference": true,
+      "has_car_appropriate_advice": false,
+      "expected_elements_found": 1,
+      "expected_elements_total": 3,
+      "contains_hallucination": false
+    },
+    "finetuned_metrics": {
+      "word_count": 29,
+      "is_concise": true,
+      "has_telemetry_reference": true,
+      "has_track_reference": false,
+      "has_car_appropriate_advice": false,
+      "expected_elements_found": 2,
+      "expected_elements_total": 3,
+      "contains_hallucination": false
+    }
+  },
+  {
+    "name": "Cold Tires - Bathurst",
+    "category": "tire_cold",
+    "input_summary": "Audi R8 LMS GT3 Evo II @ Bathurst, P12, 28.0 laps fuel",
+    "base_response": "Here's a brief callout to the driver:\n\n\"Hey, you're doing a great job out there, currently P12 with 28 laps to go. The car's handling is stable and predictable, which is exactly what we want on this mixed surface at Bathurst. Tire wear is moderate, with the rears showing a bit more wear than the fronts. Keep an eye on the rears",
+    "finetuned_response": "Car behind eight tenths, defend into Forrest's. Keep it stable and smooth through The Cutting, protect your rear. Right front still cold at fifty-eight degrees. Fuel's good to the end.",
+    "base_metrics": {
+      "word_count": 62,
+      "is_concise": false,
+      "has_telemetry_reference": true,
+      "has_track_reference": true,
+      "has_car_appropriate_advice": true,
+      "expected_elements_found": 1,
+      "expected_elements_total": 4,
+      "contains_hallucination": false
+    },
+    "finetuned_metrics": {
+      "word_count": 30,
+      "is_concise": true,
+      "has_telemetry_reference": false,
+      "has_track_reference": false,
+      "has_car_appropriate_advice": true,
+      "expected_elements_found": 1,
+      "expected_elements_total": 4,
+      "contains_hallucination": false
+    }
+  },
+  {
+    "name": "Routine Update - Watkins Glen",
+    "category": "routine",
+    "input_summary": "Lamborghini Huracan GT3 Evo @ Watkins Glen, P6, 18.0 laps fuel",
+    "base_response": "\"Alright, [Driver's Name], we're at lap 15, halfway through the stint. The Huracan is handling great, stable and forgiving as usual. We've got 18 laps of fuel left, so don't worry about conserving yet. Tire wear is moderate, with the rears taking a bit of a beating. Temperatures are around 88-92 degrees Celsius,",
+    "finetuned_response": "P6, lap fifty percent. Front right tire temps climbing, protect it through the Bus Stop. Fuel's good to the end, push when ready. Gap ahead three-five. Push now.",
+    "base_metrics": {
+      "word_count": 53,
+      "is_concise": false,
+      "has_telemetry_reference": true,
+      "has_track_reference": false,
+      "has_car_appropriate_advice": true,
+      "expected_elements_found": 2,
+      "expected_elements_total": 3,
+      "contains_hallucination": false
+    },
+    "finetuned_metrics": {
+      "word_count": 28,
+      "is_concise": true,
+      "has_telemetry_reference": true,
+      "has_track_reference": false,
+      "has_car_appropriate_advice": false,
+      "expected_elements_found": 3,
+      "expected_elements_total": 3,
+      "contains_hallucination": false
+    }
+  }
+]

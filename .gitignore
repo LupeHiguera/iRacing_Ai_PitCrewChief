@@ -216,8 +216,10 @@ suggestions.md
 
 # Data directories (large files)
 data/sessions/
-data/synthetic/
 models/
+
+# Allow synthetic training data (don't lose $2 again!)
+# data/synthetic/ - tracked now
 
 # Misc
 nul

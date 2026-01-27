@@ -173,8 +173,12 @@ def generate_response(model, tokenizer, input_data: dict, max_new_tokens: int = 
     response = tokenizer.decode(outputs[0], skip_special_tokens=True)
 
     # Extract just the assistant's response
-    if "<|start_header_id|>assistant<|end_header_id|>" in response:
-        response = response.split("<|start_header_id|>assistant<|end_header_id|>")[-1]
+    # After skip_special_tokens, the format is: "system\n\n{instruction}user\n\n{input}assistant\n\n{response}"
+    if "assistant" in response:
+        # Split on "assistant" and take the last part (the generated response)
+        parts = response.split("assistant")
+        if len(parts) > 1:
+            response = parts[-1].strip()
 
     return response.strip()
 
