@@ -18,6 +18,8 @@ peft
 bitsandbytes
 accelerate
 datasets
+torch
+scipy
 
 # Testing
 pytest
