@@ -28,7 +28,7 @@ class Config:
     lm_studio_url: str = field(
         default_factory=lambda: os.getenv("LM_STUDIO_URL", "http://localhost:1234/v1")
     )
-    llm_timeout_sec: float = 3.0
+    llm_timeout_sec: float = 10.0
 
     # Strategy thresholds
     fuel_warning_laps: float = 5.0

@@ -28,7 +28,7 @@ class LMStudioClient:
     def __init__(
         self,
         base_url: str = "http://localhost:1234/v1",
-        timeout: float = 3.0,
+        timeout: float = 10.0,
     ):
         self.base_url = base_url
         self.timeout = timeout
@@ -89,8 +89,8 @@ class LMStudioClient:
                 {"role": "system", "content": self.system_prompt},
                 {"role": "user", "content": prompt},
             ],
-            "max_tokens": 100,
-            "temperature": 0.7,
+            "max_tokens": 50,  # ~35 words, matching training data length
+            "temperature": 0.5,  # Lower temp for more focused responses
         }
 
         async with session.post(
@@ -192,11 +192,49 @@ class LMStudioClient:
             track_type = "unknown"
 
         # Calculate averaged tire temps (L/M/R -> single value per corner)
+        # Round to integer to match training data format
         tire_temps = {
-            "fl": round((snapshot.tire_temp_lf_l + snapshot.tire_temp_lf_m + snapshot.tire_temp_lf_r) / 3, 1),
-            "fr": round((snapshot.tire_temp_rf_l + snapshot.tire_temp_rf_m + snapshot.tire_temp_rf_r) / 3, 1),
-            "rl": round((snapshot.tire_temp_lr_l + snapshot.tire_temp_lr_m + snapshot.tire_temp_lr_r) / 3, 1),
-            "rr": round((snapshot.tire_temp_rr_l + snapshot.tire_temp_rr_m + snapshot.tire_temp_rr_r) / 3, 1),
+            "fl": round((snapshot.tire_temp_lf_l + snapshot.tire_temp_lf_m + snapshot.tire_temp_lf_r) / 3),
+            "fr": round((snapshot.tire_temp_rf_l + snapshot.tire_temp_rf_m + snapshot.tire_temp_rf_r) / 3),
+            "rl": round((snapshot.tire_temp_lr_l + snapshot.tire_temp_lr_m + snapshot.tire_temp_lr_r) / 3),
+            "rr": round((snapshot.tire_temp_rr_l + snapshot.tire_temp_rr_m + snapshot.tire_temp_rr_r) / 3),
+        }
+
+        # Sanitize values to match training data format
+        # Position: minimum 1 (training data never has 0)
+        position = max(1, snapshot.position)
+
+        # Fuel laps: handle Infinity and invalid values
+        fuel_laps = state.laps_of_fuel
+        if fuel_laps is None or fuel_laps != fuel_laps or fuel_laps == float('inf'):
+            # NaN check (x != x is True for NaN) or Infinity
+            fuel_laps = None
+        else:
+            fuel_laps = round(fuel_laps, 1)
+
+        # Lap percentage: round to 2 decimals like training data
+        lap_pct = round(snapshot.lap_pct, 2)
+
+        # Gaps: round to 1 decimal, keep None if not available
+        gap_ahead = round(snapshot.gap_ahead_sec, 1) if snapshot.gap_ahead_sec is not None else None
+        gap_behind = round(snapshot.gap_behind_sec, 1) if snapshot.gap_behind_sec is not None else None
+
+        # Lap times: None if invalid (0 or negative)
+        last_lap_time = round(snapshot.last_lap_time, 1) if snapshot.last_lap_time > 0 else None
+        best_lap_time = round(snapshot.best_lap_time, 1) if snapshot.best_lap_time > 0 else None
+
+        # Session laps: None if sentinel value (32767 or very large)
+        session_laps = snapshot.session_laps_remain if snapshot.session_laps_remain < 1000 else None
+
+        # Track temp: round to integer like training data
+        track_temp = round(snapshot.track_temp_c)
+
+        # Tire wear: round to integer
+        tire_wear = {
+            "fl": round(snapshot.tire_wear_lf),
+            "fr": round(snapshot.tire_wear_rf),
+            "rl": round(snapshot.tire_wear_lr),
+            "rr": round(snapshot.tire_wear_rr),
         }
 
         # Build the data structure
@@ -212,37 +250,32 @@ class LMStudioClient:
 
             # Lap info
             "lap": snapshot.lap,
-            "lap_pct": snapshot.lap_pct,
-            "position": snapshot.position,
+            "lap_pct": lap_pct,
+            "position": position,
 
             # Fuel
-            "fuel_laps_remaining": state.laps_of_fuel,
+            "fuel_laps_remaining": fuel_laps,
 
             # Tire wear
-            "tire_wear": {
-                "fl": snapshot.tire_wear_lf,
-                "fr": snapshot.tire_wear_rf,
-                "rl": snapshot.tire_wear_lr,
-                "rr": snapshot.tire_wear_rr,
-            },
+            "tire_wear": tire_wear,
 
             # Tire temps (averaged)
             "tire_temps": tire_temps,
 
             # Gaps
-            "gap_ahead": snapshot.gap_ahead_sec,
-            "gap_behind": snapshot.gap_behind_sec,
+            "gap_ahead": gap_ahead,
+            "gap_behind": gap_behind,
 
             # Lap times
-            "last_lap_time": snapshot.last_lap_time,
-            "best_lap_time": snapshot.best_lap_time,
+            "last_lap_time": last_lap_time,
+            "best_lap_time": best_lap_time,
 
             # Session
-            "session_laps_remain": snapshot.session_laps_remain,
+            "session_laps_remain": session_laps,
 
             # Other
             "incident_count": snapshot.incident_count,
-            "track_temp_c": snapshot.track_temp_c,
+            "track_temp_c": track_temp,
         }
 
         return json.dumps(data)

@@ -274,9 +274,9 @@ class EventDetector:
         if snapshot.gap_behind_sec is not None:
             gap = snapshot.gap_behind_sec
 
-            # Defend alert (very close)
+            # Defend alert (very close) - only trigger ONCE when entering battle
             if gap < self._config.gap_battle_threshold_sec:
-                if not self._is_on_cooldown(EventType.GAP_DEFEND, self._config.event_cooldown_gap):
+                if not self._was_in_battle:  # Only trigger when first entering battle
                     events.append(RaceEvent(
                         event_type=EventType.GAP_DEFEND,
                         priority=EventPriority.CRITICAL,
@@ -284,7 +284,7 @@ class EventDetector:
                         data={"gap_behind": gap}
                     ))
                     self._set_cooldown(EventType.GAP_DEFEND)
-                    self._was_in_battle = True
+                self._was_in_battle = True
 
             # Closing alert
             elif gap < self._config.gap_close_threshold_sec:
