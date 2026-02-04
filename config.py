@@ -55,7 +55,7 @@ class Config:
     gap_ahead_clean_air_sec: float = 2.5  # "Clean air" when gap opens
 
     # Tire temperature thresholds (Celsius)
-    tire_temp_cold_c: float = 60.0  # Below = cold warning
+    tire_temp_cold_c: float = 40.0  # Below = cold warning (lowered to avoid SDK caching false positives)
     tire_temp_optimal_low_c: float = 80.0  # Optimal range start
     tire_temp_optimal_high_c: float = 100.0  # Optimal range end
     tire_temp_hot_c: float = 110.0  # Above = overheating

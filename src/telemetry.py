@@ -145,6 +145,9 @@ class TelemetryReader:
             return None
 
         try:
+            # Force fresh data read from iRacing (fixes stale/cached tire temps)
+            self._ir.freeze_var_buffer_latest()
+
             # Get raw values, handle None gracefully
             lap = self._ir['Lap']
             if lap is None:
