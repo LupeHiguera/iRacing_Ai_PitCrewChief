@@ -26,6 +26,49 @@ from . import metadata
 
 
 # =============================================================================
+# CAR/TRACK COMPATIBILITY
+# =============================================================================
+
+ROAD_COURSE_TYPES = {"high_speed", "mixed", "technical", "street"}
+OVAL_TYPES = {"superspeedway", "intermediate", "short_track"}
+
+# Car classes that can ONLY race on road courses
+ROAD_ONLY_CLASSES = {
+    "production", "TCX", "touring", "TCR", "supercars",
+    "GT4", "GT3", "cup", "GTE", "GTP", "hypercar",
+    "LMP2", "LMP3", "prototype",
+    "F1", "super_formula", "F3", "F4",
+    "historic_f1", "rallycross",
+}
+
+# IndyCar races everywhere
+ALL_TRACK_CLASSES = {"IndyCar"}
+
+# Specific open_wheel car keys that are Indy ladder (can do road + some ovals)
+INDY_LADDER_KEYS = {"indy_pro_2000", "dallara_il15", "usf2000", "pm18"}
+
+
+def is_compatible(car_key: str, car_class: str, track_type: str) -> bool:
+    """Check if a car class is compatible with a track type."""
+    if car_class in ALL_TRACK_CLASSES:
+        return True
+
+    if car_class in ROAD_ONLY_CLASSES:
+        return track_type in ROAD_COURSE_TYPES
+
+    # open_wheel: check if it's Indy ladder
+    if car_class == "open_wheel":
+        if car_key in INDY_LADDER_KEYS:
+            # Indy ladder can do road courses + short ovals
+            return track_type in (ROAD_COURSE_TYPES | {"short_track"})
+        else:
+            return track_type in ROAD_COURSE_TYPES
+
+    # Default: road course only
+    return track_type in ROAD_COURSE_TYPES
+
+
+# =============================================================================
 # CONFIGURATION
 # =============================================================================
 
@@ -39,6 +82,7 @@ class GeneratorConfig:
     max_retries: int = 3
     retry_delay: float = 1.0
     validate_responses: bool = True
+    append_file: Optional[str] = None  # Path to existing data to append to
 
 
 # Category distribution - what percentage of examples for each situation
@@ -401,6 +445,15 @@ class DataGenerator:
         self.cars = list(metadata.CARS.items())
         self.tracks = list(metadata.TRACKS.items())
 
+        # Pre-compute compatible tracks for each car
+        self._compatible_tracks = {}
+        for car_key, car in self.cars:
+            compatible = [
+                (tk, t) for tk, t in self.tracks
+                if is_compatible(car_key, car["class"], t["type"])
+            ]
+            self._compatible_tracks[car_key] = compatible
+
         # Ensure output directory exists
         self.config.output_dir.mkdir(parents=True, exist_ok=True)
 
@@ -422,10 +475,13 @@ class DataGenerator:
     def generate_example(self) -> Optional[Dict[str, Any]]:
         """Generate a single training example."""
 
-        # Select category, car, track
+        # Select category, car, then a compatible track
         category = self.select_category()
         car_key, car = random.choice(self.cars)
-        track_key, track = random.choice(self.tracks)
+        compatible = self._compatible_tracks[car_key]
+        if not compatible:
+            return None
+        track_key, track = random.choice(compatible)
 
         # Generate telemetry
         base_telemetry = generate_base_telemetry(track)
@@ -500,14 +556,30 @@ class DataGenerator:
 
     def generate_all(self) -> None:
         """Generate all training examples and save to files."""
-        print(f"Starting data generation: {self.config.total_examples} examples")
+        # Load existing data if appending
+        all_examples = []
+        if self.config.append_file:
+            append_path = Path(self.config.append_file)
+            if append_path.exists():
+                with open(append_path, "r") as f:
+                    all_examples = json.load(f)
+                print(f"Loaded {len(all_examples)} existing examples from {append_path}")
+
+        target = self.config.total_examples
+        needed = target - len(all_examples)
+        if needed <= 0:
+            print(f"Already have {len(all_examples)} examples (target: {target}). Nothing to generate.")
+            return
+
+        print(f"Starting data generation: {needed} new examples (have {len(all_examples)}, target {target})")
         print(f"Output directory: {self.config.output_dir}")
 
-        all_examples = []
-        batches = (self.config.total_examples + self.config.examples_per_batch - 1) // self.config.examples_per_batch
+        batches = (needed + self.config.examples_per_batch - 1) // self.config.examples_per_batch
 
         for batch_num in range(batches):
-            remaining = self.config.total_examples - len(all_examples)
+            remaining = target - len(all_examples)
+            if remaining <= 0:
+                break
             batch_size = min(self.config.examples_per_batch, remaining)
 
             print(f"\nBatch {batch_num + 1}/{batches} ({batch_size} examples)")
@@ -560,10 +632,11 @@ def main():
     import argparse
 
     parser = argparse.ArgumentParser(description="Generate synthetic training data")
-    parser.add_argument("--count", type=int, default=100, help="Number of examples to generate")
+    parser.add_argument("--count", type=int, default=100, help="Total number of examples (target)")
     parser.add_argument("--output", type=str, default="data/synthetic", help="Output directory")
     parser.add_argument("--batch-size", type=int, default=100, help="Examples per batch")
     parser.add_argument("--no-validate", action="store_true", help="Skip response validation")
+    parser.add_argument("--append", type=str, default=None, help="Path to existing data file to append to")
 
     args = parser.parse_args()
 
@@ -572,6 +645,7 @@ def main():
         total_examples=args.count,
         examples_per_batch=args.batch_size,
         validate_responses=not args.no_validate,
+        append_file=args.append,
     )
 
     generator = DataGenerator(config)

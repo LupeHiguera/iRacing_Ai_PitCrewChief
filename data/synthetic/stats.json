@@ -1,17 +1,19 @@
 {
-  "total_generated": 48,
+  "total_generated": 1300,
   "api_failures": 0,
-  "validation_failures": 2,
+  "validation_failures": 0,
   "category_distribution": {
-    "position_battle": 5,
-    "tire_critical": 4,
-    "fuel_warning": 9,
-    "fuel_critical": 9,
-    "pit_approach": 3,
-    "pace_feedback": 3,
-    "tire_cold": 5,
-    "routine": 4,
-    "gap_management": 2,
-    "tire_warning": 4
+    "routine": 101,
+    "fuel_warning": 98,
+    "gap_management": 105,
+    "tire_warning": 128,
+    "position_battle": 94,
+    "tire_cold": 74,
+    "pace_feedback": 68,
+    "fuel_critical": 93,
+    "pit_approach": 94,
+    "tire_critical": 98,
+    "corner_specific": 198,
+    "car_trait_specific": 149
   }
 }
