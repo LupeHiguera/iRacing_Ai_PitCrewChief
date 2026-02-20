@@ -80,7 +80,7 @@ def merge_and_export(adapter_path: str, output_path: str, base_model: str = "met
 
 def main():
     parser = argparse.ArgumentParser(description="Export fine-tuned model for LM Studio")
-    parser.add_argument("--adapter", type=str, default="models/race-engineer-llama-merged",
+    parser.add_argument("--adapter", type=str, default="models/race-engineer-lora",
                         help="Path to LoRA adapter")
     parser.add_argument("--output", type=str, default="models/race-engineer-merged-full",
                         help="Output path for merged model")

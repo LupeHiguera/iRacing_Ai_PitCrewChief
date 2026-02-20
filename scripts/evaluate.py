@@ -340,7 +340,7 @@ def load_base_model(model_name: str):
     bnb_config = BitsAndBytesConfig(
         load_in_4bit=True,
         bnb_4bit_quant_type="nf4",
-        bnb_4bit_compute_dtype=torch.float16,
+        bnb_4bit_compute_dtype=torch.bfloat16,
         bnb_4bit_use_double_quant=True,
     )
 
@@ -364,7 +364,7 @@ def load_finetuned_model(adapter_path: str, base_model: str):
     bnb_config = BitsAndBytesConfig(
         load_in_4bit=True,
         bnb_4bit_quant_type="nf4",
-        bnb_4bit_compute_dtype=torch.float16,
+        bnb_4bit_compute_dtype=torch.bfloat16,
         bnb_4bit_use_double_quant=True,
     )
 
@@ -590,7 +590,7 @@ def main():
     parser = argparse.ArgumentParser(description="Evaluate race engineer model")
     parser.add_argument("--base-model", type=str, default="meta-llama/Llama-3.1-8B-Instruct",
                         help="Base model name")
-    parser.add_argument("--adapter", type=str, default="models/race-engineer-llama",
+    parser.add_argument("--adapter", type=str, default="models/race-engineer-lora",
                         help="Path to LoRA adapter")
     parser.add_argument("--output", type=str, default="data/eval_results.json",
                         help="Output path for results JSON")

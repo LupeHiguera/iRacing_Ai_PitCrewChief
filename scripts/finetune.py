@@ -31,7 +31,6 @@ from transformers import (
     AutoTokenizer,
     TrainingArguments,
     Trainer,
-    DataCollatorForLanguageModeling,
     BitsAndBytesConfig,
 )
 from peft import (
@@ -72,10 +71,11 @@ DEFAULT_CONFIG = {
     "gradient_accumulation_steps": 4,  # Effective batch = 16
     "warmup_ratio": 0.03,
     "max_seq_length": 512,
+    "eval_split": 0.05,       # 5% held out for validation
 
-    # Hardware optimization
-    "fp16": True,              # Use FP16 mixed precision
-    "bf16": False,             # Use BF16 if available (better for newer GPUs)
+    # Hardware optimization - BF16 is better for RTX 40/50 series
+    "fp16": False,
+    "bf16": True,
     "gradient_checkpointing": True,  # Save VRAM at cost of speed
 
     # Logging
@@ -88,6 +88,11 @@ DEFAULT_CONFIG = {
 # =============================================================================
 # DATA FORMATTING
 # =============================================================================
+
+# The assistant header that marks where the response begins
+ASSISTANT_HEADER = "<|start_header_id|>assistant<|end_header_id|>\n\n"
+IGNORE_INDEX = -100  # PyTorch ignores this label in loss computation
+
 
 def format_for_llama(example: Dict[str, Any], tokenizer) -> Dict[str, str]:
     """
@@ -103,20 +108,56 @@ def format_for_llama(example: Dict[str, Any], tokenizer) -> Dict[str, str]:
     input_data = example["input"]
     output = example["output"]
 
-    # Build the chat format
-    text = f"""<|begin_of_text|><|start_header_id|>system<|end_header_id|>
+    # Build the prompt (everything before the assistant response)
+    prompt = f"""<|begin_of_text|><|start_header_id|>system<|end_header_id|>
 
 {instruction}<|eot_id|><|start_header_id|>user<|end_header_id|>
 
-{input_data}<|eot_id|><|start_header_id|>assistant<|end_header_id|>
+{input_data}<|eot_id|>{ASSISTANT_HEADER}"""
 
-{output}<|eot_id|>"""
+    # Full text including response
+    full_text = f"{prompt}{output}<|eot_id|>"
 
-    return {"text": text}
+    return {"text": full_text, "prompt": prompt}
 
 
-def load_and_prepare_data(data_path: str, tokenizer, max_length: int) -> Dataset:
-    """Load JSON data and prepare for training."""
+def tokenize_with_label_masking(examples, tokenizer, max_length: int):
+    """
+    Tokenize and mask labels so loss is only computed on the assistant response.
+    Prompt tokens get label=-100 (ignored by CrossEntropyLoss).
+    """
+    all_input_ids = []
+    all_attention_mask = []
+    all_labels = []
+
+    for text, prompt in zip(examples["text"], examples["prompt"]):
+        # Tokenize full text
+        full = tokenizer(text, truncation=True, max_length=max_length, padding="max_length")
+        # Tokenize just the prompt to find where response starts
+        prompt_tokens = tokenizer(prompt, truncation=True, max_length=max_length, add_special_tokens=False)
+
+        prompt_len = len(prompt_tokens["input_ids"])
+
+        # Build labels: -100 for prompt tokens, input_ids for response tokens
+        labels = [IGNORE_INDEX] * prompt_len + full["input_ids"][prompt_len:]
+        # Pad labels to match input_ids length
+        labels = labels[:max_length]
+        if len(labels) < max_length:
+            labels += [IGNORE_INDEX] * (max_length - len(labels))
+
+        all_input_ids.append(full["input_ids"])
+        all_attention_mask.append(full["attention_mask"])
+        all_labels.append(labels)
+
+    return {
+        "input_ids": all_input_ids,
+        "attention_mask": all_attention_mask,
+        "labels": all_labels,
+    }
+
+
+def load_and_prepare_data(data_path: str, tokenizer, max_length: int, eval_split: float = 0.05):
+    """Load JSON data, prepare for training, and split into train/eval."""
     print(f"Loading data from {data_path}")
 
     with open(data_path, "r") as f:
@@ -127,28 +168,29 @@ def load_and_prepare_data(data_path: str, tokenizer, max_length: int) -> Dataset
     # Convert to dataset
     dataset = Dataset.from_list(raw_data)
 
-    # Format for Llama
+    # Format for Llama (produces text + prompt columns)
     dataset = dataset.map(
         lambda x: format_for_llama(x, tokenizer),
         remove_columns=dataset.column_names,
     )
 
-    # Tokenize
-    def tokenize(examples):
-        return tokenizer(
-            examples["text"],
-            truncation=True,
-            max_length=max_length,
-            padding="max_length",
-        )
+    # Tokenize with label masking
+    dataset = dataset.map(
+        lambda x: tokenize_with_label_masking(x, tokenizer, max_length),
+        batched=True,
+        remove_columns=["text", "prompt"],
+    )
 
-    dataset = dataset.map(tokenize, batched=True, remove_columns=["text"])
+    # Train/eval split
+    if eval_split > 0:
+        split = dataset.train_test_split(test_size=eval_split, seed=42)
+        train_dataset = split["train"]
+        eval_dataset = split["test"]
+        print(f"Prepared {len(train_dataset)} train / {len(eval_dataset)} eval examples")
+        return train_dataset, eval_dataset
 
-    # Set labels (for causal LM, labels = input_ids)
-    dataset = dataset.map(lambda x: {"labels": x["input_ids"].copy()})
-
-    print(f"Prepared {len(dataset)} training examples")
-    return dataset
+    print(f"Prepared {len(dataset)} training examples (no eval split)")
+    return dataset, None
 
 
 # =============================================================================
@@ -161,11 +203,12 @@ def setup_model_and_tokenizer(config: Dict[str, Any]):
     print(f"Loading model: {config['model_name']}")
 
     # Quantization config for 4-bit
+    compute_dtype = torch.bfloat16 if config["bf16"] else torch.float16
     bnb_config = BitsAndBytesConfig(
         load_in_4bit=True,
-        bnb_4bit_quant_type="nf4",           # Normal Float 4 - better than FP4
-        bnb_4bit_compute_dtype=torch.float16, # Compute in FP16
-        bnb_4bit_use_double_quant=True,       # Nested quantization for more savings
+        bnb_4bit_quant_type="nf4",              # Normal Float 4 - better than FP4
+        bnb_4bit_compute_dtype=compute_dtype,    # Match training precision
+        bnb_4bit_use_double_quant=True,          # Nested quantization for more savings
     )
 
     # Load tokenizer
@@ -210,7 +253,7 @@ def setup_model_and_tokenizer(config: Dict[str, Any]):
 # TRAINING
 # =============================================================================
 
-def train(config: Dict[str, Any]):
+def train(config: Dict[str, Any], resume_from_checkpoint: str = None):
     """Main training function."""
 
     print("=" * 60)
@@ -231,14 +274,16 @@ def train(config: Dict[str, Any]):
     # Setup model and tokenizer
     model, tokenizer = setup_model_and_tokenizer(config)
 
-    # Load and prepare data
-    train_dataset = load_and_prepare_data(
+    # Load and prepare data with train/eval split
+    train_dataset, eval_dataset = load_and_prepare_data(
         config["data_path"],
         tokenizer,
         config["max_seq_length"],
+        config["eval_split"],
     )
 
     # Training arguments
+    eval_strategy = "steps" if eval_dataset is not None else "no"
     training_args = TrainingArguments(
         output_dir=config["output_dir"],
         num_train_epochs=config["num_epochs"],
@@ -248,7 +293,12 @@ def train(config: Dict[str, Any]):
         warmup_ratio=config["warmup_ratio"],
         logging_steps=config["logging_steps"],
         save_steps=config["save_steps"],
+        eval_steps=config["eval_steps"],
+        eval_strategy=eval_strategy,
         save_total_limit=3,
+        load_best_model_at_end=eval_dataset is not None,
+        metric_for_best_model="eval_loss",
+        greater_is_better=False,
         fp16=config["fp16"],
         bf16=config["bf16"],
         gradient_checkpointing=config["gradient_checkpointing"],
@@ -259,23 +309,20 @@ def train(config: Dict[str, Any]):
         dataloader_pin_memory=True,
     )
 
-    # Data collator
-    data_collator = DataCollatorForLanguageModeling(
-        tokenizer=tokenizer,
-        mlm=False,  # Causal LM, not masked
-    )
-
-    # Trainer
+    # Trainer - no data collator needed since labels are already prepared
     trainer = Trainer(
         model=model,
         args=training_args,
         train_dataset=train_dataset,
-        data_collator=data_collator,
+        eval_dataset=eval_dataset,
     )
 
     # Train!
-    print("\nStarting training...")
-    trainer.train()
+    if resume_from_checkpoint:
+        print(f"\nResuming training from {resume_from_checkpoint}...")
+    else:
+        print("\nStarting training...")
+    trainer.train(resume_from_checkpoint=resume_from_checkpoint)
 
     # Save the final adapter
     print(f"\nSaving adapter to {config['output_dir']}")
@@ -326,10 +373,12 @@ def main():
                         help="Maximum sequence length")
 
     # Hardware settings
-    parser.add_argument("--bf16", action="store_true",
-                        help="Use BF16 instead of FP16 (better for RTX 40/50 series)")
+    parser.add_argument("--fp16", action="store_true",
+                        help="Use FP16 instead of BF16 (fallback for older GPUs)")
     parser.add_argument("--no-gradient-checkpointing", action="store_true",
                         help="Disable gradient checkpointing (faster but more VRAM)")
+    parser.add_argument("--resume", type=str, default=None,
+                        help="Resume from checkpoint directory (e.g., models/race-engineer-lora/checkpoint-800)")
 
     args = parser.parse_args()
 
@@ -348,16 +397,16 @@ def main():
         "gradient_checkpointing": not args.no_gradient_checkpointing,
     })
 
-    # RTX 50 series supports BF16 well
-    if args.bf16:
-        config["bf16"] = True
-        config["fp16"] = False
+    # Fallback to FP16 for older GPUs
+    if args.fp16:
+        config["fp16"] = True
+        config["bf16"] = False
 
     # Ensure output directory exists
     Path(config["output_dir"]).mkdir(parents=True, exist_ok=True)
 
     # Train!
-    train(config)
+    train(config, resume_from_checkpoint=args.resume)
 
 
 if __name__ == "__main__":
