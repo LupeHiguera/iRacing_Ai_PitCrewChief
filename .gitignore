@@ -223,3 +223,14 @@ models/
 
 # Misc
 nul
+
+# Build deps (don't commit binaries)
+tools/
+*.gguf
+*.zip
+
+# VS / VSCode workspace
+.vs/
+
+# Claude Code local state
+.claude/

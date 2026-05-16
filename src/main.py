@@ -75,6 +75,8 @@ class StrategyEngine:
             self._overlay = OverlayServer(
                 host=self._config.overlay_host,
                 port=self._config.overlay_port,
+                model_label=self._config.overlay_model_label,
+                fine_tuned=self._config.overlay_fine_tuned,
             )
             await self._overlay.start()
 

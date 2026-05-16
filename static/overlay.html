@@ -315,6 +315,20 @@
             font-size: 11px;
             font-weight: 600;
             margin-left: auto;
+            white-space: nowrap;
+        }
+
+        .model-badge.fine-tuned {
+            background: linear-gradient(135deg, rgba(74, 222, 128, 0.25), rgba(34, 197, 94, 0.15));
+            color: #4ade80;
+            border: 1px solid rgba(74, 222, 128, 0.4);
+            text-shadow: 0 0 8px rgba(74, 222, 128, 0.4);
+        }
+
+        .model-badge.base {
+            background: rgba(248, 113, 113, 0.2);
+            color: #f87171;
+            border: 1px solid rgba(248, 113, 113, 0.4);
         }
 
         .prompt-preview {
@@ -460,38 +474,159 @@
             position: fixed;
             bottom: 30px;
             left: 50%;
-            transform: translateX(-50%);
-            width: 600px;
-            max-width: 80vw;
-            background: rgba(0, 0, 0, 0.90);
-            border-radius: 12px;
-            backdrop-filter: blur(10px);
-            border: 1px solid rgba(255, 255, 255, 0.15);
+            transform: translateX(-50%) translateY(20px);
+            width: 680px;
+            max-width: 86vw;
+            background: linear-gradient(180deg, rgba(15, 18, 23, 0.95), rgba(0, 0, 0, 0.92));
+            border-radius: 14px;
+            backdrop-filter: blur(14px);
+            border: 1px solid rgba(255, 255, 255, 0.12);
             overflow: hidden;
             opacity: 0;
-            transition: opacity 0.3s ease;
+            transition: opacity 0.35s ease, transform 0.35s cubic-bezier(0.2, 0.8, 0.2, 1);
+            box-shadow: 0 12px 40px rgba(0, 0, 0, 0.5);
         }
 
         .ai-panel.visible {
             opacity: 1;
+            transform: translateX(-50%) translateY(0);
         }
 
         .ai-panel.urgency-critical {
-            border-color: #ef4444;
-            box-shadow: 0 0 30px rgba(239, 68, 68, 0.4);
+            border-color: rgba(239, 68, 68, 0.6);
+            box-shadow: 0 12px 40px rgba(0, 0, 0, 0.5), 0 0 40px rgba(239, 68, 68, 0.35);
         }
 
         .ai-panel.urgency-warning {
-            border-color: #f97316;
-            box-shadow: 0 0 20px rgba(249, 115, 22, 0.3);
+            border-color: rgba(249, 115, 22, 0.5);
+            box-shadow: 0 12px 40px rgba(0, 0, 0, 0.5), 0 0 28px rgba(249, 115, 22, 0.25);
+        }
+
+        .ai-panel-header {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 10px 18px 6px;
+            font-size: 10px;
+            text-transform: uppercase;
+            letter-spacing: 1.4px;
+            color: rgba(255, 255, 255, 0.45);
+            font-weight: 600;
+        }
+
+        .ai-panel-header .live-dot {
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            background: #4ade80;
+            box-shadow: 0 0 8px rgba(74, 222, 128, 0.7);
+            animation: pulse 1.4s ease-in-out infinite;
+        }
+
+        .ai-panel-header .header-spacer {
+            flex: 1;
+        }
+
+        .ai-panel-header .model-tag {
+            font-size: 10px;
+            padding: 2px 8px;
+            border-radius: 4px;
+            letter-spacing: 1px;
+        }
+
+        .ai-panel-header .model-tag.fine-tuned {
+            background: rgba(74, 222, 128, 0.18);
+            color: #4ade80;
+            border: 1px solid rgba(74, 222, 128, 0.4);
+        }
+
+        .ai-panel-header .model-tag.base {
+            background: rgba(248, 113, 113, 0.15);
+            color: #f87171;
+            border: 1px solid rgba(248, 113, 113, 0.4);
         }
 
         .ai-message {
-            padding: 16px 20px;
-            font-size: 20px;
+            padding: 6px 22px 18px;
+            font-size: 22px;
             font-weight: 500;
             line-height: 1.4;
             text-align: center;
+            letter-spacing: -0.2px;
+        }
+
+        .ai-wave {
+            display: inline-flex;
+            gap: 3px;
+            align-items: flex-end;
+            height: 14px;
+            margin-left: 10px;
+            vertical-align: middle;
+            opacity: 0;
+            transition: opacity 0.2s;
+        }
+
+        .ai-panel.speaking .ai-wave { opacity: 0.85; }
+
+        .ai-wave span {
+            display: inline-block;
+            width: 3px;
+            background: #60a5fa;
+            border-radius: 2px;
+            animation: wave 0.9s ease-in-out infinite;
+        }
+        .ai-wave span:nth-child(1) { height: 6px;  animation-delay: 0s; }
+        .ai-wave span:nth-child(2) { height: 12px; animation-delay: 0.12s; }
+        .ai-wave span:nth-child(3) { height: 8px;  animation-delay: 0.24s; }
+        .ai-wave span:nth-child(4) { height: 14px; animation-delay: 0.36s; }
+        .ai-wave span:nth-child(5) { height: 5px;  animation-delay: 0.48s; }
+
+        @keyframes wave {
+            0%, 100% { transform: scaleY(0.4); }
+            50% { transform: scaleY(1.2); }
+        }
+
+        /* Event ticker */
+        .event-ticker {
+            position: fixed;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            gap: 10px;
+            max-width: 70vw;
+            pointer-events: none;
+        }
+
+        .event-pill {
+            background: rgba(20, 24, 29, 0.85);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 999px;
+            padding: 4px 12px;
+            font-size: 11px;
+            color: rgba(255, 255, 255, 0.7);
+            backdrop-filter: blur(8px);
+            white-space: nowrap;
+            animation: tickerIn 0.4s cubic-bezier(0.2, 0.8, 0.2, 1);
+        }
+
+        .event-pill.urgency-critical {
+            border-color: rgba(239, 68, 68, 0.5);
+            color: #fca5a5;
+        }
+        .event-pill.urgency-warning {
+            border-color: rgba(249, 115, 22, 0.4);
+            color: #fdba74;
+        }
+        .event-pill.spoken {
+            background: linear-gradient(90deg, rgba(74, 222, 128, 0.2), rgba(20, 24, 29, 0.85));
+            border-color: rgba(74, 222, 128, 0.4);
+            color: #bbf7d0;
+        }
+
+        @keyframes tickerIn {
+            from { opacity: 0; transform: translateY(-8px); }
+            to { opacity: 1; transform: translateY(0); }
         }
 
         .ai-footer {
@@ -555,19 +690,20 @@
             transition: width 0.1s linear;
         }
 
-        /* Connection indicator */
+        /* Connection indicator (hides itself once stable) */
         .connection {
             position: fixed;
             top: 10px;
-            left: 50%;
-            transform: translateX(-50%);
+            right: 20px;
             display: flex;
             align-items: center;
             gap: 6px;
             font-size: 11px;
             color: rgba(255, 255, 255, 0.4);
             opacity: 0.5;
+            transition: opacity 0.5s ease;
         }
+        .connection.hidden { opacity: 0; pointer-events: none; }
 
         .connection-dot {
             width: 6px;
@@ -597,11 +733,14 @@
     </style>
 </head>
 <body>
-    <!-- Connection Status -->
-    <div class="connection">
+    <!-- Connection Status (auto-hides when stable) -->
+    <div class="connection" id="connection">
         <div class="connection-dot" id="connectionDot"></div>
         <span id="connectionText">Connecting...</span>
     </div>
+
+    <!-- Event Ticker (top-center, shows recent race events) -->
+    <div class="event-ticker" id="eventTicker"></div>
 
     <!-- Top Left - Race Context -->
     <div class="panel race-context">
@@ -730,7 +869,16 @@
 
     <!-- Bottom Center - AI Message -->
     <div class="ai-panel" id="aiPanel">
-        <div class="ai-message" id="aiMessage">Waiting for AI...</div>
+        <div class="ai-panel-header">
+            <span class="live-dot"></span>
+            <span>AI Race Engineer</span>
+            <span class="header-spacer"></span>
+            <span class="model-tag fine-tuned" id="aiPanelModelTag">FINE-TUNED</span>
+        </div>
+        <div class="ai-message" id="aiMessage">
+            <span id="aiMessageText">Waiting for AI...</span>
+            <span class="ai-wave"><span></span><span></span><span></span><span></span><span></span></span>
+        </div>
         <div class="ai-footer">
             <div class="footer-item">
                 <span class="footer-label">Trigger:</span>
@@ -755,7 +903,13 @@
         let ws = null;
         let reconnectTimer = null;
         let aiMessageTimer = null;
+        let aiSpeakingTimer = null;
+        let connectionHideTimer = null;
+        let lastSpokenMessage = '';
         const AI_MESSAGE_DISPLAY_TIME = 10000;
+        const SPEAKING_ANIMATION_TIME = 3500;
+        const TICKER_MAX_PILLS = 4;
+        const TICKER_PILL_LIFETIME_MS = 8000;
 
         function connect() {
             const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
@@ -764,11 +918,17 @@
             ws.onopen = () => {
                 document.getElementById('connectionDot').classList.add('connected');
                 document.getElementById('connectionText').textContent = 'Connected';
+                // Auto-hide after 3s when stable
+                clearTimeout(connectionHideTimer);
+                connectionHideTimer = setTimeout(() => {
+                    document.getElementById('connection').classList.add('hidden');
+                }, 3000);
             };
 
             ws.onclose = () => {
                 document.getElementById('connectionDot').classList.remove('connected');
                 document.getElementById('connectionText').textContent = 'Disconnected';
+                document.getElementById('connection').classList.remove('hidden');
                 reconnectTimer = setTimeout(connect, 2000);
             };
 
@@ -784,6 +944,29 @@
                     console.error('Parse error:', e);
                 }
             };
+        }
+
+        // === Event ticker (top-center pills showing recent events) ===
+        function pushEventPill(text, urgency, spoken) {
+            const ticker = document.getElementById('eventTicker');
+            const pill = document.createElement('div');
+            pill.className = 'event-pill';
+            if (urgency) pill.classList.add('urgency-' + urgency);
+            if (spoken) pill.classList.add('spoken');
+            pill.textContent = (spoken ? '🔊 ' : '') + text;
+            ticker.appendChild(pill);
+            // Cap count
+            while (ticker.children.length > TICKER_MAX_PILLS) {
+                ticker.removeChild(ticker.firstChild);
+            }
+            // Expire after lifetime
+            setTimeout(() => {
+                if (pill.parentNode) {
+                    pill.style.transition = 'opacity 0.4s';
+                    pill.style.opacity = '0';
+                    setTimeout(() => pill.remove(), 400);
+                }
+            }, TICKER_PILL_LIFETIME_MS);
         }
 
         function formatLapTime(seconds) {
@@ -858,11 +1041,27 @@
             document.getElementById('lapProgress').style.width = `${d.lap_pct}%`;
         }
 
+        function applyModelBadges(d) {
+            const isFT = d && d.fine_tuned !== false; // default to fine-tuned for legacy
+            const label = isFT ? 'FINE-TUNED' : 'BASE';
+            const fullName = d && d.model ? d.model : 'Llama 3.1 8B';
+
+            // Side AI Debug panel badge (compact)
+            const modelEl = document.getElementById('modelName');
+            modelEl.textContent = fullName;
+            modelEl.className = 'model-badge ' + (isFT ? 'fine-tuned' : 'base');
+
+            // Bottom AI panel tag (prominent)
+            const tag = document.getElementById('aiPanelModelTag');
+            tag.textContent = label;
+            tag.className = 'model-tag ' + (isFT ? 'fine-tuned' : 'base');
+        }
+
         function showAIThinking(d) {
             document.getElementById('aiStatusDot').classList.add('thinking');
             document.getElementById('aiStatusText').textContent = 'Thinking...';
             document.getElementById('promptText').textContent = d.prompt_preview || '...';
-            document.getElementById('modelName').textContent = d.model || 'Llama 3.1 8B';
+            applyModelBadges(d);
         }
 
         function showAIMessage(d) {
@@ -871,12 +1070,12 @@
             document.getElementById('aiStatusText').textContent = 'Complete';
             document.getElementById('promptText').textContent = d.prompt_preview || '--';
             document.getElementById('aiLatency').textContent = `${d.latency_ms}ms`;
-            document.getElementById('aiTrigger').textContent = d.trigger_reason.split(':')[0] || '--';
-            document.getElementById('modelName').textContent = d.model || 'Llama 3.1 8B';
+            document.getElementById('aiTrigger').textContent = (d.trigger_reason || '').split(':')[0] || '--';
+            applyModelBadges(d);
 
             // Update message panel
             const panel = document.getElementById('aiPanel');
-            document.getElementById('aiMessage').textContent = d.message;
+            document.getElementById('aiMessageText').textContent = d.message;
             document.getElementById('footerTrigger').textContent = d.trigger_reason;
             document.getElementById('footerLatency').textContent = `${d.latency_ms}ms`;
 
@@ -884,9 +1083,22 @@
             badge.textContent = d.urgency.toUpperCase();
             badge.className = 'urgency-badge ' + d.urgency;
 
+            // Reset urgency-specific styling each call
             panel.className = 'ai-panel visible';
             if (d.urgency === 'critical') panel.classList.add('urgency-critical');
             else if (d.urgency === 'warning') panel.classList.add('urgency-warning');
+
+            // Speaking wave animation
+            panel.classList.add('speaking');
+            if (aiSpeakingTimer) clearTimeout(aiSpeakingTimer);
+            aiSpeakingTimer = setTimeout(() => panel.classList.remove('speaking'), SPEAKING_ANIMATION_TIME);
+
+            // Push to event ticker (mark as spoken)
+            const tickerText = (d.trigger_reason || '').split(':')[0] || 'AI';
+            if (d.message !== lastSpokenMessage) {
+                pushEventPill(tickerText, d.urgency, true);
+                lastSpokenMessage = d.message;
+            }
 
             if (aiMessageTimer) clearTimeout(aiMessageTimer);
             aiMessageTimer = setTimeout(() => {

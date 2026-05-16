@@ -337,7 +337,7 @@ def train(config: Dict[str, Any], resume_from_checkpoint: str = None):
     print("\nTraining complete!")
     print(f"Adapter saved to: {config['output_dir']}")
     print("\nNext steps:")
-    print("  1. Test with: python scripts/test_model.py")
+    print("  1. Evaluate: python scripts/eval_comprehensive.py")
     print("  2. Merge and export: python scripts/export_model.py")
 
 

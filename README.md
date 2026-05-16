@@ -2,9 +2,11 @@
 
 A real-time AI race engineer that provides voice strategy updates during iRacing sessions. Fine-tuned Llama 3.1 8B using QLoRA on 9,200+ synthetic race engineer examples. Runs locally with LM Studio for low-latency inference and Piper TTS for natural speech output.
 
+**[Project write-up on higuera.io →](https://higuera.io/projects/iracing-strategist)**
+
 ## Demo
 
-[Youtube](https://www.youtube.com/watch?v=D0YSpfuh97o)
+[YouTube demo](https://www.youtube.com/watch?v=D0YSpfuh97o)
 
 ## Architecture
 
@@ -61,19 +63,130 @@ Fine-tuned Llama 3.1 8B Instruct using QLoRA on 9,269 synthetic training example
 | Tire Warning | 18.2 | **68.4** |
 | Fuel Warning | 23.2 | **59.4** |
 
-### Before / After Examples
+### Comparison Dashboard — Pick a Scenario
 
-**Fuel Critical at Spa (lap 18, 1.8 laps of fuel, P4):**
-- Base: *"Hey, 3rd place, 85% of the lap..."* (verbose, wrong position, no urgency)
-- **Fine-tuned:** *"Box this lap, critical fuel. P4 will close that 4.2 second gap. Manage tires through Pouhon."*
+> Every response below is the **actual model output** from `data/eval_comprehensive.json`. Scores are the composite 12-metric scorer (0–100). Want it interactive? See [docs/dashboard.html](docs/dashboard.html) ([live](https://lupehiguera.github.io/iRacing_Ai_PitCrewChief/dashboard.html)).
 
-**Tire Warning at Barcelona (FR at 108C, 52% worn):**
-- Base: *"Alright, driver! We're on lap 18, 35% through the stint..."* (generic, no action)
-- **Fine-tuned:** *"Front right temp one-oh-eight, wear at fifty-two percent. Ease trail braking into Turn 5."*
+<details>
+<summary><b>🚨 Fuel Critical</b> — Spa, P3, 0.8 laps of fuel &nbsp;·&nbsp; <code>Base 12 → FT 100 &nbsp;(+88)</code></summary>
 
-**Battle at Nurburgring (P3, gap 0.4s to P2):**
-- Base: *"Hey driver, we're in a good spot, P3 on lap 10..."* (no urgency, hallucinated names)
-- **Fine-tuned:** *"P3, gap four-tenths. Use your strong brakes into Veedol, be aggressive on exit."*
+> **Base Llama 3.1 8B:** *"Hey, 3rd place, 85% of the lap completed. Fuel's looking good, you've got enough to make it to the end. Tire wear's not too bad, but we're a bit soft in the rear. Temps are getting hot, especially on the rears, so be careful not to push too hard."*
+> — Verbose, wrong about fuel, no call to box.
+>
+> **Fine-tuned:** *"Box this lap, critical fuel. P4 will close that 4.2 second gap. Manage rear weight transfer through Bus Stop, trail brake smoothly in."*
+> — Correct urgency, names the corner (Bus Stop), references gap, car-appropriate (Porsche rear-engine).
+
+</details>
+
+<details>
+<summary><b>⛽ Fuel Warning</b> — Nürburgring GP, P3, 3.8 laps &nbsp;·&nbsp; <code>Base 4 → FT 69 &nbsp;(+65)</code></summary>
+
+> **Base:** *"Hey, driver! We're on lap 22, 42% of the way through the stint. You're currently in third place, 1.5 seconds ahead of the car in front and 2.8 seconds behind the leader. Tire wear is looking good..."*
+> — 60+ words, swaps "ahead" and "behind," no strategy call.
+>
+> **Fine-tuned:** *"Box this lap, box this lap. Fuel critical at three-point-eight remaining. We'll take four tires, P4 on the out-lap. Push through final sector."*
+> — Urgency, exact value, projected out-position, action.
+
+</details>
+
+<details>
+<summary><b>🔥 Tire Critical</b> — Spa, McLaren 720S GT3, FR destroyed &nbsp;·&nbsp; <code>Base 19 → FT 76 &nbsp;(+57)</code></summary>
+
+> **Base:** *"Alright, driver, we're in a good position, P4 with 6 laps to go. Tyres are looking good, with the fronts not too worn and the rears still relatively fresh..."*
+> — Contradicts the input (FR is destroyed), reassures instead of warning.
+>
+> **Fine-tuned:** *"Front right critical at one-fifteen degrees. Protect it through Blanchimont and Bus Stop. We'll box next time by, six laps fuel remaining."*
+> — Specific temp, two corner names, plan.
+
+</details>
+
+<details>
+<summary><b>♨️ Tire Warning</b> — Silverstone, Ferrari 296 GT3, rear deg &nbsp;·&nbsp; <code>Base 19 → FT 84 &nbsp;(+65)</code></summary>
+
+> **Base:** *"Hey driver, it's your engineer. We're in a good spot, P5 with 18 laps to go. The tires are looking good, FL at 35, FR at 38, RL at 55, and RR at 58. Temperatures are a bit high, FL at 92, FR at 94, RL at 104, and RR at 106."*
+> — Reads telemetry like a dashboard; no advice.
+>
+> **Fine-tuned:** *"Rear tires at one-oh-four, two degrees over. Ease the aggression through Maggotts-Becketts, manage that rear downforce. Twenty-two to go, fuel's good."*
+> — Translates data into a specific cornering instruction.
+
+</details>
+
+<details>
+<summary><b>❄️ Tire Cold</b> — Monza, green track, P10 battle &nbsp;·&nbsp; <code>Base 34 → FT 100 &nbsp;(+66)</code></summary>
+
+> **Base:** *"Alright, driver, here's the situation. We're on lap 3, 58% complete. You're currently in 10th position, with 28 laps of fuel left. Tire wear is moderate, with the rears showing some signs of degradation..."*
+> — Misses the actual issue (cold tires) entirely.
+>
+> **Fine-tuned:** *"Tires still cold, especially left side. Push hard through Lesmo 1 and 2, use the downforce. Gap behind closing, nine-tenths."*
+> — Correct diagnosis, prescribes warm-up sectors, surfaces threat.
+
+</details>
+
+<details>
+<summary><b>⚔️ Position Battle</b> — Road America, defending P2, 0.3s &nbsp;·&nbsp; <code>Base 4 → FT 69 &nbsp;(+65)</code></summary>
+
+> **Base:** *"Alright, driver, we're looking good here. You're 2nd place with 8 laps to go. Your tires are holding up well, **flintstones** are at 28% wear..."*
+> — Hallucinated word ("flintstones"), zero urgency despite 0.3s gap.
+>
+> **Fine-tuned:** *"Car behind three-tenths, defend into Canada Corner. Use your brakes late and rotate the car, he's pushing too hard. Fuel's tight, eight laps remaining."*
+> — Tactical, corner-specific, identifies opponent error.
+
+</details>
+
+<details>
+<summary><b>🌬️ Gap Management</b> — Road America, building gap to P5 &nbsp;·&nbsp; <code>Base 34 → FT 100 &nbsp;(+66)</code></summary>
+
+> **Base:** *"Hey, you're doing a great job out there! You're in P4, 5.2 seconds behind the leader and 2.8 seconds ahead of the car behind you..."*
+> — Praise, no action.
+>
+> **Fine-tuned:** *"P4, gap behind closing two-eight. Push now, use those strong brakes into Canada Corner. We need one-two-six to close the five seconds ahead."*
+> — Target lap time, specific corner, car-trait reference.
+
+</details>
+
+<details>
+<summary><b>🅿️ Pit Approach</b> — Monza, splash-and-dash, 1.2 laps &nbsp;·&nbsp; <code>Base 4 → FT 92 &nbsp;(+88)</code></summary>
+
+> **Base:** *"Hey driver, it's your engineer. We're in a good position, P4, with 1.2 laps left on the tank. Tyres are looking okay..."*
+> — "Good position" while running out of fuel.
+>
+> **Fine-tuned:** *"Box this lap, critical fuel. Push through Ascari, then straight in. P4 secure, five second gap behind."*
+> — Names the corner before pit entry; confirms it's safe to keep position.
+
+</details>
+
+<details>
+<summary><b>📈 Pace Feedback</b> — Nürburgring, improving trend &nbsp;·&nbsp; <code>Base 34 → FT 84 &nbsp;(+50)</code></summary>
+
+> **Base:** *"Hey, you're looking good out there. The car's handling is solid, as expected. You're 7th on the grid, and the gaps are manageable..."*
+> — Vague encouragement.
+>
+> **Fine-tuned:** *"P7, gap ahead 3.8. Just set fastest lap, keep this pace. Front right running hot at 92, manage it through Ford Kurve. Fuel's good to the end.*"
+> — Confirms the trend, flags emerging tire concern, prescribes a corner.
+
+</details>
+
+<details>
+<summary><b>🏁 Routine</b> — Monza, clean run mid-stint &nbsp;·&nbsp; <code>Base 34 → FT 92 &nbsp;(+58)</code></summary>
+
+> **Base:** *"Alright, driver, this is your engineer. We're on lap 12, 35% through the stint. You're in fourth position, with a gap of 2.8 seconds to the leader..."*
+> — Sounds like a status readout.
+>
+> **Fine-tuned:** *"P4, gap ahead two-eight. Front right temp climbing to 94. Ease entry aggression through Roggia, let the aero work. Fuel's good to the end."*
+> — Even routine updates name corners and prescribe action.
+
+</details>
+
+#### What the dashboard shows
+
+| Failure mode (base) | Fine-tuned behavior |
+|---------------------|---------------------|
+| 60+ word stat dumps | Under 25 words, TTS-ready |
+| Reads numbers without interpreting | Translates numbers into corner-specific actions |
+| Contradicts inputs ("tires look good" when destroyed) | Stays grounded in actual telemetry |
+| Hallucinates words and positions | Zero hallucinations across 55 cases |
+| No urgency markers | "Box this lap," "Defend," matched to situation |
+| Car-agnostic generic advice | References car traits (Porsche rear-engine, BMW brakes) |
 
 ## Features
 
@@ -190,7 +303,7 @@ Each example pairs raw telemetry JSON (car, track, temps, gaps, fuel, position) 
 ## Installation
 
 ```bash
-git clone https://github.com/yourusername/iRacing_Ai_PitCrewChief.git
+git clone https://github.com/LupeHiguera/iRacing_Ai_PitCrewChief.git
 cd iRacing_Ai_PitCrewChief
 
 pip install -r requirements.txt

@@ -95,6 +95,8 @@ class Config:
     overlay_enabled: bool = True
     overlay_host: str = "localhost"
     overlay_port: int = 8080
+    overlay_model_label: str = "Race-Engineer FT v1"  # Shown as badge in overlay
+    overlay_fine_tuned: bool = True  # Flag toggles "FINE-TUNED" vs "BASE" badge styling
 
     def __post_init__(self):
         """Ensure directories exist."""

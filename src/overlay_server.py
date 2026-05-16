@@ -23,13 +23,23 @@ from .strategy import StrategyState, Urgency
 class OverlayServer:
     """WebSocket server for overlay updates."""
 
-    def __init__(self, host: str = "localhost", port: int = 8080):
+    def __init__(
+        self,
+        host: str = "localhost",
+        port: int = 8080,
+        model_label: str = "Race-Engineer FT (Llama 3.1 8B QLoRA)",
+        fine_tuned: bool = True,
+    ):
         self._host = host
         self._port = port
         self._app = FastAPI()
         self._connections: Set[WebSocket] = set()
         self._server = None
         self._server_task: Optional[asyncio.Task] = None
+
+        # Model identification (shown in overlay)
+        self._model_label = model_label
+        self._fine_tuned = fine_tuned
 
         # Session info (set once at start)
         self._track_name: str = "Unknown Track"
@@ -202,7 +212,8 @@ class OverlayServer:
             "data": {
                 "status": "thinking",
                 "prompt_preview": prompt_preview,
-                "model": "Llama 3.1 8B",
+                "model": self._model_label,
+                "fine_tuned": self._fine_tuned,
             }
         }
 
@@ -232,7 +243,8 @@ class OverlayServer:
                 "trigger_reason": trigger_reason,
                 "latency_ms": round(latency_ms, 0),
                 "urgency": urgency.value,
-                "model": "Llama 3.1 8Bvery ",
+                "model": self._model_label,
+                "fine_tuned": self._fine_tuned,
                 "prompt_preview": prompt_preview,
                 "status": "complete",
             }

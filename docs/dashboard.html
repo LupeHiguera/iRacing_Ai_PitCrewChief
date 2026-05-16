@@ -1,0 +1,325 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>iRacing AI Pit Crew Chief — Base vs Fine-tuned</title>
+<meta name="description" content="Interactive comparison of base Llama 3.1 8B vs QLoRA fine-tuned model across 55 race-engineer scenarios.">
+<style>
+  :root {
+    --bg: #0b0d10;
+    --bg-elev: #14181d;
+    --bg-elev-2: #1b2128;
+    --border: #262d36;
+    --text: #e6e9ed;
+    --text-dim: #9aa3ad;
+    --text-mute: #6a727c;
+    --accent: #60a5fa;
+    --accent-2: #4ade80;
+    --bad: #f87171;
+    --warn: #fbbf24;
+    --good: #4ade80;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; background: var(--bg); color: var(--text); font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; font-size: 15px; line-height: 1.5; }
+  a { color: var(--accent); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  code, .mono { font-family: 'SF Mono', Menlo, Consolas, monospace; font-size: 0.9em; }
+
+  .container { max-width: 1200px; margin: 0 auto; padding: 32px 24px 80px; }
+
+  header h1 { margin: 0 0 4px; font-size: 28px; letter-spacing: -0.5px; }
+  header p.sub { margin: 0 0 24px; color: var(--text-dim); font-size: 15px; }
+  header .links { margin: 0 0 32px; font-size: 14px; color: var(--text-mute); }
+  header .links a { margin-right: 16px; }
+
+  /* Summary cards */
+  .summary { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; margin-bottom: 32px; }
+  .card { background: var(--bg-elev); border: 1px solid var(--border); border-radius: 10px; padding: 16px; }
+  .card .label { color: var(--text-mute); font-size: 11px; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 6px; }
+  .card .big { font-size: 28px; font-weight: 700; line-height: 1; }
+  .card .big.accent { color: var(--accent-2); }
+  .card .small { color: var(--text-dim); font-size: 13px; margin-top: 4px; }
+  .arrow { color: var(--text-mute); font-weight: 400; font-size: 22px; margin: 0 4px; }
+  .delta-pos { color: var(--good); font-size: 13px; margin-left: 8px; }
+
+  /* Filters */
+  .filters { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 16px; }
+  .chip { background: var(--bg-elev); border: 1px solid var(--border); color: var(--text-dim); padding: 6px 12px; border-radius: 999px; cursor: pointer; font-size: 13px; transition: all 0.15s; }
+  .chip:hover { border-color: var(--accent); color: var(--text); }
+  .chip.active { background: var(--accent); border-color: var(--accent); color: #0b0d10; font-weight: 600; }
+
+  /* Layout */
+  .grid { display: grid; grid-template-columns: 320px 1fr; gap: 24px; }
+  @media (max-width: 900px) { .grid { grid-template-columns: 1fr; } }
+
+  /* Sidebar case list */
+  .sidebar { background: var(--bg-elev); border: 1px solid var(--border); border-radius: 10px; padding: 8px; max-height: 70vh; overflow-y: auto; }
+  .case-item { padding: 10px 12px; border-radius: 6px; cursor: pointer; border: 1px solid transparent; }
+  .case-item:hover { background: var(--bg-elev-2); }
+  .case-item.active { background: var(--bg-elev-2); border-color: var(--accent); }
+  .case-item .name { font-size: 13.5px; font-weight: 500; color: var(--text); margin-bottom: 2px; }
+  .case-item .meta { display: flex; gap: 6px; align-items: center; font-size: 11px; color: var(--text-mute); }
+  .case-item .cat-tag { padding: 1px 6px; border-radius: 4px; background: var(--bg); color: var(--text-dim); }
+  .case-item .delta { margin-left: auto; color: var(--good); font-weight: 600; }
+
+  /* Detail panel */
+  .detail { background: var(--bg-elev); border: 1px solid var(--border); border-radius: 10px; padding: 24px; }
+  .detail h2 { margin: 0 0 4px; font-size: 20px; }
+  .detail .input-summary { color: var(--text-dim); margin-bottom: 20px; font-size: 14px; }
+  .responses { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 24px; }
+  @media (max-width: 700px) { .responses { grid-template-columns: 1fr; } }
+  .response { background: var(--bg-elev-2); border: 1px solid var(--border); border-radius: 8px; padding: 16px; }
+  .response.base { border-left: 3px solid var(--bad); }
+  .response.ft { border-left: 3px solid var(--good); }
+  .response .label { font-size: 11px; text-transform: uppercase; letter-spacing: 1px; color: var(--text-mute); margin-bottom: 6px; }
+  .response .score { font-size: 22px; font-weight: 700; margin-bottom: 10px; }
+  .response.base .score { color: var(--bad); }
+  .response.ft .score { color: var(--good); }
+  .response .text { font-size: 14px; line-height: 1.55; color: var(--text); white-space: pre-wrap; }
+  .response .footer { margin-top: 12px; font-size: 12px; color: var(--text-mute); }
+
+  /* Metric breakdown */
+  .metrics h3 { margin: 0 0 12px; font-size: 14px; text-transform: uppercase; letter-spacing: 1px; color: var(--text-mute); }
+  .metric-row { display: grid; grid-template-columns: 200px 1fr 1fr; gap: 12px; align-items: center; padding: 6px 0; border-bottom: 1px solid var(--border); font-size: 13px; }
+  .metric-row:last-child { border-bottom: none; }
+  .metric-name { color: var(--text-dim); }
+  .metric-cell { display: flex; align-items: center; gap: 8px; }
+  .badge { display: inline-block; min-width: 24px; padding: 2px 8px; border-radius: 4px; font-size: 12px; text-align: center; font-weight: 600; }
+  .badge.yes { background: rgba(74, 222, 128, 0.15); color: var(--good); }
+  .badge.no { background: rgba(248, 113, 113, 0.15); color: var(--bad); }
+  .badge.num { background: var(--bg); color: var(--text); }
+
+  .empty { padding: 40px; text-align: center; color: var(--text-mute); }
+  footer { margin-top: 48px; padding-top: 24px; border-top: 1px solid var(--border); color: var(--text-mute); font-size: 13px; }
+</style>
+</head>
+<body>
+<div class="container">
+  <header>
+    <h1>iRacing AI Pit Crew Chief — Live Eval Dashboard</h1>
+    <p class="sub">Base Llama 3.1 8B vs QLoRA fine-tuned model across 55 race-engineer scenarios. Pick any case to see the actual responses and the 12-metric scorer breakdown.</p>
+    <div class="links">
+      <a href="https://github.com/LupeHiguera/iRacing_Ai_PitCrewChief">GitHub repo</a>
+      <a href="https://higuera.io/projects/iracing-strategist">Write-up</a>
+      <a href="https://www.youtube.com/watch?v=D0YSpfuh97o">Demo video</a>
+    </div>
+  </header>
+
+  <section class="summary" id="summary"></section>
+
+  <div class="filters" id="filters"></div>
+
+  <div class="grid">
+    <aside class="sidebar" id="sidebar"></aside>
+    <main class="detail" id="detail"><div class="empty">Loading…</div></main>
+  </div>
+
+  <footer>
+    Data source: <code>data/eval_comprehensive.json</code> · 12-metric weighted scorer with hallucination penalty · 55 test cases across 10 categories.
+  </footer>
+</div>
+
+<script>
+const CATEGORY_LABELS = {
+  fuel_critical: 'Fuel Critical',
+  fuel_warning: 'Fuel Warning',
+  tire_critical: 'Tire Critical',
+  tire_warning: 'Tire Warning',
+  tire_cold: 'Tire Cold',
+  position_battle: 'Position Battle',
+  gap_management: 'Gap Management',
+  pit_approach: 'Pit Approach',
+  pace_feedback: 'Pace Feedback',
+  routine: 'Routine',
+};
+
+const METRIC_DISPLAY = [
+  { key: 'composite_score', label: 'Composite score', kind: 'num' },
+  { key: 'word_count', label: 'Word count', kind: 'num' },
+  { key: 'is_concise', label: 'Concise (< 40 words)', kind: 'bool' },
+  { key: 'is_tts_suitable', label: 'TTS suitable', kind: 'bool' },
+  { key: 'has_telemetry_reference', label: 'References telemetry', kind: 'bool' },
+  { key: 'has_track_reference', label: 'References track corner', kind: 'bool' },
+  { key: 'has_car_appropriate_advice', label: 'Car-appropriate advice', kind: 'bool' },
+  { key: 'urgency_appropriate', label: 'Urgency matches', kind: 'bool' },
+  { key: 'contains_required_element', label: 'Has required keyword', kind: 'bool' },
+  { key: 'is_actionable', label: 'Actionable', kind: 'bool' },
+  { key: 'is_specific', label: 'Specific (cites numbers)', kind: 'bool' },
+  { key: 'references_correct_values', label: 'Numbers match input', kind: 'bool' },
+  { key: 'contains_hallucination', label: 'Hallucinations', kind: 'bool-inverse' },
+];
+
+let data = null;
+let activeFilter = 'all';
+let activeCaseIdx = 0;
+
+async function load() {
+  try {
+    const res = await fetch('eval_comprehensive.json');
+    data = await res.json();
+  } catch (e) {
+    document.getElementById('detail').innerHTML = `<div class="empty">Failed to load eval data. Open this file via a web server, not file://. <br><br><code>python -m http.server 8000</code> then visit <code>http://localhost:8000/docs/dashboard.html</code></div>`;
+    return;
+  }
+  renderSummary();
+  renderFilters();
+  renderSidebar();
+  renderDetail();
+}
+
+function renderSummary() {
+  const s = data.summary;
+  const ftLatency = avgLatency('finetuned_latency_ms');
+  const baseLatency = avgLatency('base_latency_ms');
+  const halluc = countHalluc();
+  const el = document.getElementById('summary');
+  el.innerHTML = `
+    <div class="card">
+      <div class="label">Composite Score</div>
+      <div class="big"><span style="color:var(--bad)">${s.base_avg_score.toFixed(1)}</span> <span class="arrow">→</span> <span class="accent">${s.ft_avg_score.toFixed(1)}</span></div>
+      <div class="small">out of 100 · +${(s.ft_avg_score - s.base_avg_score).toFixed(1)} avg lift</div>
+    </div>
+    <div class="card">
+      <div class="label">Fine-tuned Wins</div>
+      <div class="big accent">${s.ft_wins} / ${s.total_cases}</div>
+      <div class="small">${((s.ft_wins / s.total_cases) * 100).toFixed(1)}% across all categories</div>
+    </div>
+    <div class="card">
+      <div class="label">Hallucinations</div>
+      <div class="big"><span style="color:var(--bad)">${halluc.base}</span> <span class="arrow">→</span> <span class="accent">${halluc.ft}</span></div>
+      <div class="small">out of ${s.total_cases} cases</div>
+    </div>
+    <div class="card">
+      <div class="label">Avg Latency</div>
+      <div class="big"><span style="color:var(--text-dim)">${(baseLatency/1000).toFixed(2)}s</span> <span class="arrow">→</span> <span class="accent">${(ftLatency/1000).toFixed(2)}s</span></div>
+      <div class="small">model output time</div>
+    </div>
+  `;
+}
+
+function avgLatency(field) {
+  const vals = data.results.map(r => r[field] || 0).filter(v => v > 0);
+  return vals.reduce((a, b) => a + b, 0) / Math.max(vals.length, 1);
+}
+
+function countHalluc() {
+  let base = 0, ft = 0;
+  for (const r of data.results) {
+    if (r.base_metrics.contains_hallucination) base++;
+    if (r.finetuned_metrics.contains_hallucination) ft++;
+  }
+  return { base, ft };
+}
+
+function renderFilters() {
+  const cats = ['all', ...Object.keys(CATEGORY_LABELS)];
+  const el = document.getElementById('filters');
+  el.innerHTML = cats.map(c => {
+    const label = c === 'all' ? 'All categories' : CATEGORY_LABELS[c];
+    const count = c === 'all' ? data.results.length : data.results.filter(r => r.category === c).length;
+    return `<button class="chip ${c === activeFilter ? 'active' : ''}" data-cat="${c}">${label} <span style="opacity:0.7">(${count})</span></button>`;
+  }).join('');
+  el.querySelectorAll('.chip').forEach(btn => {
+    btn.addEventListener('click', () => {
+      activeFilter = btn.dataset.cat;
+      activeCaseIdx = 0;
+      renderFilters();
+      renderSidebar();
+      renderDetail();
+    });
+  });
+}
+
+function filteredCases() {
+  if (activeFilter === 'all') return data.results.map((r, i) => ({ r, i }));
+  return data.results.map((r, i) => ({ r, i })).filter(o => o.r.category === activeFilter);
+}
+
+function renderSidebar() {
+  const cases = filteredCases();
+  const el = document.getElementById('sidebar');
+  if (cases.length === 0) { el.innerHTML = '<div class="empty">No cases match</div>'; return; }
+  el.innerHTML = cases.map(({ r, i }) => {
+    const delta = r.finetuned_metrics.composite_score - r.base_metrics.composite_score;
+    const sign = delta >= 0 ? '+' : '';
+    return `<div class="case-item ${i === activeCaseIdx ? 'active' : ''}" data-idx="${i}">
+      <div class="name">${escapeHtml(r.name)}</div>
+      <div class="meta">
+        <span class="cat-tag">${CATEGORY_LABELS[r.category] || r.category}</span>
+        <span style="text-transform:uppercase;font-size:10px;letter-spacing:0.5px">${r.urgency}</span>
+        <span class="delta">${sign}${delta.toFixed(0)}</span>
+      </div>
+    </div>`;
+  }).join('');
+  el.querySelectorAll('.case-item').forEach(item => {
+    item.addEventListener('click', () => {
+      activeCaseIdx = parseInt(item.dataset.idx, 10);
+      renderSidebar();
+      renderDetail();
+    });
+  });
+  // Ensure active is visible
+  if (!cases.some(c => c.i === activeCaseIdx)) {
+    activeCaseIdx = cases[0].i;
+    renderSidebar();
+    renderDetail();
+  }
+}
+
+function renderDetail() {
+  const r = data.results[activeCaseIdx];
+  if (!r) { document.getElementById('detail').innerHTML = '<div class="empty">No case selected</div>'; return; }
+  const baseLat = r.base_latency_ms ? `${(r.base_latency_ms / 1000).toFixed(2)}s latency` : '';
+  const ftLat = r.finetuned_latency_ms ? `${(r.finetuned_latency_ms / 1000).toFixed(2)}s latency` : '';
+
+  const detail = document.getElementById('detail');
+  detail.innerHTML = `
+    <h2>${escapeHtml(r.name)}</h2>
+    <div class="input-summary">${escapeHtml(r.input_summary)}</div>
+    <div class="responses">
+      <div class="response base">
+        <div class="label">Base Llama 3.1 8B</div>
+        <div class="score">${r.base_metrics.composite_score.toFixed(0)} <span style="font-size:13px;color:var(--text-mute);font-weight:400">/ 100</span></div>
+        <div class="text">${escapeHtml(r.base_response)}</div>
+        <div class="footer">${baseLat}</div>
+      </div>
+      <div class="response ft">
+        <div class="label">Fine-tuned (QLoRA r=16)</div>
+        <div class="score">${r.finetuned_metrics.composite_score.toFixed(0)} <span style="font-size:13px;color:var(--text-mute);font-weight:400">/ 100</span></div>
+        <div class="text">${escapeHtml(r.finetuned_response)}</div>
+        <div class="footer">${ftLat}</div>
+      </div>
+    </div>
+    <div class="metrics">
+      <h3>Metric breakdown</h3>
+      ${METRIC_DISPLAY.map(m => renderMetricRow(m, r)).join('')}
+    </div>
+  `;
+}
+
+function renderMetricRow(m, r) {
+  const b = r.base_metrics[m.key];
+  const f = r.finetuned_metrics[m.key];
+  return `<div class="metric-row">
+    <div class="metric-name">${m.label}</div>
+    <div class="metric-cell">${badge(b, m.kind)}</div>
+    <div class="metric-cell">${badge(f, m.kind)}</div>
+  </div>`;
+}
+
+function badge(v, kind) {
+  if (kind === 'num') return `<span class="badge num">${typeof v === 'number' ? v.toFixed(v % 1 === 0 ? 0 : 1) : v}</span>`;
+  if (kind === 'bool') return v ? '<span class="badge yes">yes</span>' : '<span class="badge no">no</span>';
+  if (kind === 'bool-inverse') return v ? '<span class="badge no">yes</span>' : '<span class="badge yes">clean</span>';
+  return `<span class="badge num">${v}</span>`;
+}
+
+function escapeHtml(s) {
+  return String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
+
+load();
+</script>
+</body>
+</html>
