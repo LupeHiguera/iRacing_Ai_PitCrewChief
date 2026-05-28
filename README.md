@@ -14,12 +14,14 @@ A real-time AI race engineer that provides voice strategy updates during iRacing
 iRacing SDK
     │
     ▼
-Telemetry Reader (43 fields @ 1Hz)
+Telemetry Reader (49 fields @ 1Hz)
+    │
+    ├──► Tire-State Estimator (per-corner temp/wear from live G-load)
     │
     ▼
 Strategy Calculator (fuel, tires, pit window)
     │
-    ├──► Event Detector (25 event types)
+    ├──► Event Detector (race events)
     │         │
     │         ▼
     │    LLM Client (fine-tuned Llama 3.1 8B via LM Studio)
@@ -190,9 +192,10 @@ Fine-tuned Llama 3.1 8B Instruct using QLoRA on 9,269 synthetic training example
 
 ## Features
 
-- **Real-time telemetry** - Reads 43 fields from iRacing via pyirsdk at 1Hz
+- **Real-time telemetry** - Reads 49 fields from iRacing via pyirsdk at 1Hz
+- **Tire-state estimation** - iRacing exposes no live tire-temp channel, so per-corner temp/wear is reconstructed from live load (lateral/longitudinal G, brake, speed) and anchored to the real pit-stop measurements
 - **Strategy calculations** - Fuel consumption tracking, pit window estimation, tire degradation monitoring
-- **25 event types** - Position changes, battles, lockups, wheelspin, flags, pace trends, and more
+- **Race event detection** - Position changes, battles, gap/dirty-air, tire temps, flags, pace trends, pit lane
 - **Car/track awareness** - 60+ cars and 65+ tracks with corner mappings for contextual callouts
 - **Fine-tuned LLM** - QLoRA-trained Llama 3.1 8B that infers situations from raw telemetry
 - **Voice output** - Piper TTS for hands-free racing
@@ -207,12 +210,38 @@ The AI detects and responds to 25 race situations:
 | **Position** | Gained/lost (batched) | "Gained 3 positions, now P6" |
 | **Battle** | Gap closing, Defend, Clear | "Defend! 0.5 behind" |
 | **Dirty/Clean Air** | Following, gap opens | "Clean air now, push" |
-| **Tire Temps** | Cold, Optimal, Hot | "Fronts running hot, ease the braking" |
-| **Lockup/Spin** | Sudden temp spike | "Lockup! Easy on the brakes" |
-| **Pace** | Dropping, Improving, PB | "Personal best! Great lap" |
+| **Tire Temps** (estimated) | Cold, Optimal, Hot | "Fronts running hot, ease the braking" |
+| **Pace** | Dropping, Improving, PB | "Pace dropping, tires may be going off" |
 | **Race Progress** | Halfway, Laps remaining | "5 laps remaining, bring it home" |
 | **Flags** | Yellow, Green | "Yellow flag, caution" |
 | **Pit Lane** | Entry, Exit | "Out of the pits, push now" |
+
+> Tire-temp events fire off the [tire-state estimate](#tire-state-estimation). Lockup/wheelspin detection exists in the code but is disabled on iRacing — it needs sub-second temp spikes the SDK never streams.
+
+## Tire State Estimation
+
+iRacing's tire telemetry is a trap: `tireTempC*` and `tireWear*` only refresh when the pit
+crew measures the tires — at spawn and each pit stop — and are **frozen during a stint** (tire
+pressure reads `0`). I confirmed this from the session logs: a 24-lap GT3 run updated tire temps
+exactly twice (spawn + the lap after a pit stop). Feeding the model that frozen cold value made
+it report "tires cold" for the entire race.
+
+Since iRacing *does* stream the load signals the tires respond to, `src/tire_model.py`
+reconstructs a per-corner temp/wear estimate instead:
+
+- **Heat from work, not pedals** — lateral and longitudinal **G-forces** drive heating (cornering
+  loads the outer pair, braking the fronts, acceleration the rears). Using G rather than throttle
+  avoids cooking the rears on long full-throttle straights, where steady throttle does no tire work.
+- **Cooling** relaxes toward the live track/air temp, with extra airflow cooling at speed.
+- **Anchored to ground truth** — at spawn and every pit exit the estimate resets to iRacing's real
+  crew measurement, so each stint starts from a true value and extrapolates from there.
+- **Wear** accrues with load, scaled by each car's degradation trait.
+
+Estimated values feed the model prompt and the tire events, and show as **ESTIMATED** in the
+overlay (never passed off as live). On a validation pit stop at Monza the estimate tracked the
+correct relative pattern (hottest corner, left/right bias) and ran ~10-15°C above the crew's
+*carcass* measurement — expected, since the estimate approximates *surface* temp and the tires
+cool on the in-lap. `main.py` logs estimate-vs-measured error at each stop for ongoing calibration.
 
 ## Fine-Tuning Details
 
@@ -369,9 +398,10 @@ python llama.cpp/convert_hf_to_gguf.py models/race-engineer-merged --outfile rac
 
 ```
 src/
-├── telemetry.py        # iRacing data via pyirsdk (43 fields)
+├── telemetry.py        # iRacing data via pyirsdk (49 fields)
+├── tire_model.py       # Per-corner tire temp/wear estimator (live G-load + pit anchor)
 ├── strategy.py         # Fuel/tire calculations + pit window
-├── event_detector.py   # 25 race event types with cooldowns
+├── event_detector.py   # Race event types with cooldowns
 ├── llm_client.py       # LM Studio API client + JSON prompt format
 ├── metadata.py         # 60+ cars, 65+ tracks with corner mappings
 ├── tts.py              # Piper TTS wrapper with priority queue
@@ -384,7 +414,8 @@ scripts/
 ├── export_model.py     # Merge LoRA adapter with base model
 ├── eval_comprehensive.py  # 55-case eval with 12 metrics
 ├── evaluate.py         # Simple 8-case eval
-└── clean_data.py       # Training data cleanup
+├── clean_data.py       # Training data cleanup
+└── diag_tire_temps.py  # Diagnostic: dump live tire telemetry update rates
 
 data/
 ├── sessions/           # 28 logged race sessions (gzip JSON)
@@ -396,18 +427,21 @@ models/
 └── race-engineer-merged/  # Full merged model (for GGUF conversion)
 
 tests/
-├── test_telemetry.py   # 30 tests
-├── test_metadata.py    # 35 tests
-└── test_llm_client.py  # 45 tests
+├── test_telemetry.py       # 30 tests
+├── test_metadata.py        # 35 tests
+├── test_llm_client.py      # 46 tests
+├── test_tire_model.py      # 13 tests (estimator behavior)
+├── test_event_detector.py  # 4 tests (estimate-driven tire events)
+└── test_main.py            # 21 tests
 ```
 
 ## Known Limitations
 
 | Issue | Cause | Workaround |
 |-------|-------|------------|
-| Tire temps static on some cars | MX-5/M2 lack TPMS | Use GT3/GTE cars |
-| Tire wear minimal in short sessions | Not enough laps | Longer stints |
-| Lockup detection needs GT3+ | Lower-tier cars don't report temps | Use GT3/GTE/F3 |
+| No live tire temps/wear (all cars) | iRacing's SDK only refreshes them when the crew measures the tires — at spawn and pit stops | [Tire-state estimator](#tire-state-estimation) reconstructs them from live G-load, anchored to the pit measurements |
+| Estimate reads ~10-15°C above the pit measurement | Estimator approximates surface temp; tires also cool on the in-lap, and the crew measures carcass temp | Relative pattern (hot corner, L/R bias) is accurate; per-car calibration from pit checks is possible |
+| Lockup/wheelspin events disabled | Need sub-second temp spikes the SDK never streams | Pace degradation is used as the live tire-wear proxy instead |
 
 ## Tech Stack
 

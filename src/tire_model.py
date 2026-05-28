@@ -117,22 +117,30 @@ class TireStateEstimator:
         self._anchored = True
 
     def _corner_loads(self, snapshot: TelemetrySnapshot) -> dict:
-        """Normalized per-corner load (~0..1.5) from lateral/longitudinal demand."""
+        """Normalized per-corner load (~0..2) from actual G-forces.
+
+        Heat comes from tire WORK, i.e. the forces the tire is generating, not
+        pedal position. Using G (not throttle/brake) avoids cooking the rears on
+        long full-throttle straights, where steady throttle produces almost no
+        tire heat (long_accel ~ 0). Brake adds a small front-only term since the
+        pedal is a clean front-load cue and is never held on a straight.
+        """
         lat = snapshot.lat_accel / G
+        lng = snapshot.long_accel / G
         # Lateral load transfers to the outer pair. Sign convention: positive
         # LatAccel loads the right-hand tires (flip if a car proves otherwise --
         # only affects which side is named, not the magnitude of heating).
         right_load = max(0.0, lat)
         left_load = max(0.0, -lat)
-        # Braking loads/heats the fronts; traction loads/heats the rears.
-        braking = max(0.0, -snapshot.long_accel / G) + snapshot.brake
-        traction = max(0.0, snapshot.long_accel / G) + snapshot.throttle
+        # Braking (deceleration) heats the fronts; acceleration heats the rears.
+        braking = max(0.0, -lng) + 0.3 * snapshot.brake
+        accel = max(0.0, lng)
         base = 0.15
         return {
-            "LF": base + left_load + 0.6 * braking,
-            "RF": base + right_load + 0.6 * braking,
-            "LR": base + left_load + 0.6 * traction,
-            "RR": base + right_load + 0.6 * traction,
+            "LF": base + left_load + 0.8 * braking,
+            "RF": base + right_load + 0.8 * braking,
+            "LR": base + left_load + 0.8 * accel,
+            "RR": base + right_load + 0.8 * accel,
         }
 
     def update(self, snapshot: TelemetrySnapshot, dt: float = 1.0) -> TireEstimate:
