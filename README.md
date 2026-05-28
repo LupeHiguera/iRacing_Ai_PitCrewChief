@@ -6,7 +6,7 @@ A real-time AI race engineer that provides voice strategy updates during iRacing
 
 ## Demo
 
-[YouTube demo](https://www.youtube.com/watch?v=D0YSpfuh97o)
+[YouTube demo](https://www.youtube.com/watch?v=15d633gyyfY)
 
 ## Architecture
 
