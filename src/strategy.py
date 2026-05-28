@@ -155,7 +155,14 @@ class StrategyCalculator:
         return max(0, int(window))
 
     def _find_worst_tire(self, snapshot: TelemetrySnapshot) -> tuple[str, float]:
-        """Find the tire corner with worst wear."""
+        """Find the tire corner with worst wear.
+
+        Note: iRacing only refreshes tire wear when the crew measures the tires
+        (spawn + pit stops), so mid-stint this is a frozen lower bound, not the
+        true current wear. Treat it as "at least this worn since the last stop";
+        the tire-wear urgency thresholds will under-report during a stint. Pace
+        degradation (see EventDetector PACE_DROPPING) is the live tire signal.
+        """
         tires = {
             "LF": snapshot.tire_wear_lf,
             "RF": snapshot.tire_wear_rf,

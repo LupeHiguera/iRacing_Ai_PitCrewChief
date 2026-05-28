@@ -166,18 +166,22 @@ class EventDetector:
         self,
         snapshot: TelemetrySnapshot,
         state: StrategyState,
+        tire_temps_est: Optional[dict] = None,
     ) -> List[RaceEvent]:
         """
         Analyze telemetry and return list of detected events.
 
         Events are returned in priority order (highest first).
+
+        tire_temps_est: optional per-corner estimated temps {LF,RF,LR,RR} from
+        the tire-state estimator, used in place of the frozen snapshot temps.
         """
         events = []
 
         # Detect various event types
         events.extend(self._detect_position_events(snapshot))
         events.extend(self._detect_gap_events(snapshot))
-        events.extend(self._detect_tire_temp_events(snapshot))
+        events.extend(self._detect_tire_temp_events(snapshot, tire_temps_est))
         events.extend(self._detect_pace_events(snapshot))
         events.extend(self._detect_race_progress_events(snapshot))
         events.extend(self._detect_flag_events(snapshot))
@@ -344,24 +348,43 @@ class EventDetector:
 
     # === Tire Temperature Events ===
 
-    def _detect_tire_temp_events(self, snapshot: TelemetrySnapshot) -> List[RaceEvent]:
-        """Detect tire temperature events (hot, cold, optimal, lockup, wheelspin)."""
+    def _detect_tire_temp_events(
+        self,
+        snapshot: TelemetrySnapshot,
+        tire_temps_est: Optional[dict] = None,
+    ) -> List[RaceEvent]:
+        """Detect tire temperature events (hot, cold, optimal, lockup, wheelspin).
+
+        Temp source: estimated per-corner temps when provided (iRacing has no
+        live tire-temp channel -- see src/tire_model.py), otherwise the snapshot
+        temps. Runs when either a live channel or the estimator is enabled.
+
+        Lockup/wheelspin stay off unless temps are TRULY live: they rely on a
+        sub-second temp spike between consecutive samples that neither the
+        once-per-pit raw channel nor a 1Hz estimate can resolve.
+        """
+        if not (self._config.tire_temp_telemetry_live or self._config.tire_temp_estimation_enabled):
+            return []
+
         events = []
 
-        # Calculate average temps per corner
-        temps = {
-            "LF": (snapshot.tire_temp_lf_l + snapshot.tire_temp_lf_m + snapshot.tire_temp_lf_r) / 3,
-            "RF": (snapshot.tire_temp_rf_l + snapshot.tire_temp_rf_m + snapshot.tire_temp_rf_r) / 3,
-            "LR": (snapshot.tire_temp_lr_l + snapshot.tire_temp_lr_m + snapshot.tire_temp_lr_r) / 3,
-            "RR": (snapshot.tire_temp_rr_l + snapshot.tire_temp_rr_m + snapshot.tire_temp_rr_r) / 3,
-        }
+        # Estimated temps (LF/RF/LR/RR) take precedence; else average snapshot L/M/R.
+        if tire_temps_est is not None:
+            temps = dict(tire_temps_est)
+        else:
+            temps = {
+                "LF": (snapshot.tire_temp_lf_l + snapshot.tire_temp_lf_m + snapshot.tire_temp_lf_r) / 3,
+                "RF": (snapshot.tire_temp_rf_l + snapshot.tire_temp_rf_m + snapshot.tire_temp_rf_r) / 3,
+                "LR": (snapshot.tire_temp_lr_l + snapshot.tire_temp_lr_m + snapshot.tire_temp_lr_r) / 3,
+                "RR": (snapshot.tire_temp_rr_l + snapshot.tire_temp_rr_m + snapshot.tire_temp_rr_r) / 3,
+            }
 
         # Skip if temps are all zero (car doesn't report temps)
         if all(t == 0 for t in temps.values()):
             return []
 
-        # Lockup/wheelspin detection (sudden temp spike)
-        if self._last_tire_temps:
+        # Lockup/wheelspin detection (sudden temp spike) - live temps only.
+        if self._config.tire_temp_telemetry_live and self._last_tire_temps:
             fronts = ["LF", "RF"]
             rears = ["LR", "RR"]
 
@@ -492,11 +515,14 @@ class EventDetector:
                 delta = recent_avg - earlier_avg
 
                 if delta > self._config.pace_drop_threshold_sec:
+                    # Lap-time degradation is our live tire-wear proxy: iRacing
+                    # doesn't stream live tire temps/wear, so falling pace is the
+                    # honest signal that the tires are going off.
                     if not self._is_on_cooldown(EventType.PACE_DROPPING, self._config.event_cooldown_pace):
                         events.append(RaceEvent(
                             event_type=EventType.PACE_DROPPING,
                             priority=EventPriority.MEDIUM,
-                            message=f"Pace dropping, {delta:.1f}s slower",
+                            message=f"Pace dropping {delta:.1f}s, tires may be going off",
                             data={"delta": delta, "recent_avg": recent_avg}
                         ))
                         self._set_cooldown(EventType.PACE_DROPPING)

@@ -17,6 +17,7 @@ from .tts import PiperTTS
 from .logger import SessionLogger
 from .overlay_server import OverlayServer
 from .event_detector import EventDetector, RaceEvent, EventPriority
+from .tire_model import TireStateEstimator, TireEstimate
 
 
 class StrategyEngine:
@@ -34,6 +35,7 @@ class StrategyEngine:
         self._logger: Optional[SessionLogger] = None
         self._overlay: Optional[OverlayServer] = None
         self._event_detector: Optional[EventDetector] = None
+        self._tire_estimator: Optional[TireStateEstimator] = None
 
         # State tracking
         self._last_lap: int = 0
@@ -41,6 +43,12 @@ class StrategyEngine:
         self._last_llm_call_time: float = 0.0
         self._car_name: str = ""
         self._track_name: str = ""
+
+        # Tire-state estimation (iRacing has no live tire-temp channel)
+        self._tire_estimate: Optional[TireEstimate] = None
+        self._last_tick_time: float = 0.0
+        self._prev_on_pit_road: bool = False
+        self._est_temps_at_pit_entry: Optional[dict] = None
 
     async def start(self) -> None:
         """Initialize components and start the engine."""
@@ -70,13 +78,23 @@ class StrategyEngine:
         # Initialize event detector
         self._event_detector = EventDetector(self._config)
 
+        # Initialize tire-state estimator
+        self._tire_estimator = TireStateEstimator(self._config)
+
         # Start overlay server
         if self._config.overlay_enabled:
+            if self._config.tire_temp_telemetry_live:
+                tire_temp_source = "live"
+            elif self._config.tire_temp_estimation_enabled:
+                tire_temp_source = "estimated"
+            else:
+                tire_temp_source = "pit"
             self._overlay = OverlayServer(
                 host=self._config.overlay_host,
                 port=self._config.overlay_port,
                 model_label=self._config.overlay_model_label,
                 fine_tuned=self._config.overlay_fine_tuned,
+                tire_temp_source=tire_temp_source,
             )
             await self._overlay.start()
 
@@ -133,6 +151,10 @@ class StrategyEngine:
         self._car_name = self._telemetry.get_car_name()
         print(f"Track: {self._track_name} | Car: {self._car_name}")
 
+        # Scale tire-wear estimation to this car's degradation trait
+        if self._tire_estimator:
+            self._tire_estimator.set_car(self._car_name)
+
         # Start logging session
         if self._logger:
             self._logger.start_session(self._track_name, self._car_name)
@@ -175,20 +197,30 @@ class StrategyEngine:
                 # Update strategy
                 state = self._strategy.update(snapshot)
 
+                # Update tire-state estimate (iRacing has no live tire temps)
+                self._update_tire_estimate(snapshot)
+
                 # Log telemetry
                 self._log_telemetry(snapshot, state)
 
                 # Broadcast to overlay
                 if self._overlay:
-                    await self._overlay.broadcast_telemetry(snapshot, state)
+                    await self._overlay.broadcast_telemetry(
+                        snapshot, state, tire_estimate=self._tire_estimate,
+                    )
 
                 # Debug: Show lap changes
                 if snapshot.lap != self._last_lap:
                     print(f"[DEBUG] Lap {snapshot.lap} completed | Fuel: {state.laps_of_fuel:.1f} laps | "
                           f"Urgency: {state.urgency.name}")
 
-                # Detect events
-                events = self._event_detector.detect_events(snapshot, state)
+                # Detect events (tire events use the estimate when enabled)
+                est_temps = (
+                    self._tire_estimate.temps
+                    if (self._tire_estimate and self._config.tire_temp_estimation_enabled)
+                    else None
+                )
+                events = self._event_detector.detect_events(snapshot, state, tire_temps_est=est_temps)
 
                 # Process highest priority event (if any)
                 if events:
@@ -215,6 +247,45 @@ class StrategyEngine:
                 import traceback
                 traceback.print_exc()
                 await asyncio.sleep(1.0)
+
+    def _update_tire_estimate(self, snapshot: TelemetrySnapshot) -> None:
+        """Advance the tire-state estimate and log accuracy at each pit stop."""
+        if not self._tire_estimator:
+            return
+
+        now = time.time()
+        dt = (now - self._last_tick_time) if self._last_tick_time else 1.0
+        dt = max(0.1, min(5.0, dt))  # robust to variable loop timing / LLM stalls
+        self._last_tick_time = now
+
+        # Snapshot the estimate as we enter the pits, to compare against the
+        # crew measurement that lands after the stop.
+        if snapshot.on_pit_road and not self._prev_on_pit_road and self._tire_estimate:
+            self._est_temps_at_pit_entry = dict(self._tire_estimate.temps)
+
+        self._tire_estimate = self._tire_estimator.update(snapshot, dt)
+
+        # On pit exit the snapshot holds fresh measured temps -> accuracy check.
+        if not snapshot.on_pit_road and self._prev_on_pit_road and self._est_temps_at_pit_entry:
+            measured = TireStateEstimator.measured_temps(snapshot)
+            if any(v > 0 for v in measured.values()):
+                err = TireStateEstimator.estimate_error(self._est_temps_at_pit_entry, measured)
+                avg_err = sum(err.values()) / len(err)
+                detail = ", ".join(f"{k}:{v:.0f}" for k, v in err.items())
+                print(f"[TIRE-EST] pit accuracy: avg |est-measured| = {avg_err:.1f}C ({detail})")
+            self._est_temps_at_pit_entry = None
+
+        self._prev_on_pit_road = snapshot.on_pit_road
+
+    def _prompt_tire_args(self) -> dict:
+        """kwargs for format_telemetry_prompt_json controlling tire-temp source."""
+        if self._config.tire_temp_estimation_enabled and self._tire_estimate:
+            return {
+                "include_tire_temps": True,
+                "tire_temps_override": self._tire_estimate.temps_prompt(),
+                "tire_wear_override": self._tire_estimate.wear_prompt(),
+            }
+        return {"include_tire_temps": self._config.tire_temp_telemetry_live}
 
     async def _wait_for_connection(
         self,
@@ -283,9 +354,12 @@ class StrategyEngine:
         event: RaceEvent,
     ) -> None:
         """Handle a detected event - call LLM or use fallback."""
-        # Build prompt with JSON format matching training data
+        # Build prompt with JSON format matching training data. iRacing freezes
+        # raw tire temps between pit stops, so we feed the per-corner estimate
+        # (or omit temps entirely if estimation is off) -- see _prompt_tire_args.
         prompt = self._llm.format_telemetry_prompt_json(
-            state, snapshot, self._car_name, self._track_name
+            state, snapshot, self._car_name, self._track_name,
+            **self._prompt_tire_args(),
         )
 
         # Broadcast "thinking" state to overlay

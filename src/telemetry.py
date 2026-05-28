@@ -82,6 +82,16 @@ class TelemetrySnapshot:
     # Lap delta to best (negative = faster than best)
     lap_delta_to_best: float = 0.0
 
+    # Live dynamics (used by the tire-state estimator, since iRacing has no
+    # live tire-temp channel). Speed m/s, accel m/s^2, throttle/brake 0-1,
+    # steering radians.
+    speed: float = 0.0
+    lat_accel: float = 0.0
+    long_accel: float = 0.0
+    throttle: float = 0.0
+    brake: float = 0.0
+    steering_angle: float = 0.0
+
 
 class TelemetryReader:
     """Reads telemetry data from iRacing via pyirsdk."""
@@ -206,6 +216,13 @@ class TelemetryReader:
                 session_flags=self._ir['SessionFlags'] or 0,
                 incident_count=self._ir['PlayerCarDriverIncidentCount'] or 0,
                 lap_delta_to_best=self._ir['LapDeltaToBestLap'] or 0.0,
+                # Live dynamics for tire-state estimation
+                speed=self._ir['Speed'] or 0.0,
+                lat_accel=self._ir['LatAccel'] or 0.0,
+                long_accel=self._ir['LongAccel'] or 0.0,
+                throttle=self._ir['Throttle'] or 0.0,
+                brake=self._ir['Brake'] or 0.0,
+                steering_angle=self._ir['SteeringWheelAngle'] or 0.0,
             )
         except Exception:
             return None

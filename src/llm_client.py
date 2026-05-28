@@ -155,6 +155,9 @@ class LMStudioClient:
         snapshot: TelemetrySnapshot,
         car_name: str,
         track_name: str,
+        include_tire_temps: bool = True,
+        tire_temps_override: Optional[dict] = None,
+        tire_wear_override: Optional[dict] = None,
     ) -> str:
         """
         Format telemetry into JSON format matching training data schema.
@@ -167,6 +170,14 @@ class LMStudioClient:
             snapshot: Current telemetry snapshot.
             car_name: Car name from iRacing.
             track_name: Track name from iRacing.
+            include_tire_temps: When False, the tire_temps key is omitted.
+                iRacing only refreshes tire temps at pit stops, so mid-stint
+                they are a frozen cold value -- feeding them makes the model
+                report "tires cold" indefinitely. Pass False for iRacing.
+            tire_temps_override: Per-corner temps {fl,fr,rl,rr} to use instead of
+                the frozen snapshot temps (e.g. from the tire-state estimator).
+            tire_wear_override: Per-corner wear {fl,fr,rl,rr} to use instead of
+                the pit-measured snapshot wear (e.g. estimated wear).
 
         Returns:
             JSON string with all telemetry fields.
@@ -190,15 +201,6 @@ class LMStudioClient:
         else:
             track_short_name = track_name
             track_type = "unknown"
-
-        # Calculate averaged tire temps (L/M/R -> single value per corner)
-        # Round to integer to match training data format
-        tire_temps = {
-            "fl": round((snapshot.tire_temp_lf_l + snapshot.tire_temp_lf_m + snapshot.tire_temp_lf_r) / 3),
-            "fr": round((snapshot.tire_temp_rf_l + snapshot.tire_temp_rf_m + snapshot.tire_temp_rf_r) / 3),
-            "rl": round((snapshot.tire_temp_lr_l + snapshot.tire_temp_lr_m + snapshot.tire_temp_lr_r) / 3),
-            "rr": round((snapshot.tire_temp_rr_l + snapshot.tire_temp_rr_m + snapshot.tire_temp_rr_r) / 3),
-        }
 
         # Sanitize values to match training data format
         # Position: minimum 1 (training data never has 0)
@@ -229,13 +231,17 @@ class LMStudioClient:
         # Track temp: round to integer like training data
         track_temp = round(snapshot.track_temp_c)
 
-        # Tire wear: round to integer
-        tire_wear = {
-            "fl": round(snapshot.tire_wear_lf),
-            "fr": round(snapshot.tire_wear_rf),
-            "rl": round(snapshot.tire_wear_lr),
-            "rr": round(snapshot.tire_wear_rr),
-        }
+        # Tire wear: round to integer. Use estimated wear if supplied, otherwise
+        # the pit-measured snapshot wear (a last-stop floor on iRacing).
+        if tire_wear_override is not None:
+            tire_wear = {k: round(v) for k, v in tire_wear_override.items()}
+        else:
+            tire_wear = {
+                "fl": round(snapshot.tire_wear_lf),
+                "fr": round(snapshot.tire_wear_rf),
+                "rl": round(snapshot.tire_wear_lr),
+                "rr": round(snapshot.tire_wear_rr),
+            }
 
         # Build the data structure
         data = {
@@ -259,9 +265,6 @@ class LMStudioClient:
             # Tire wear
             "tire_wear": tire_wear,
 
-            # Tire temps (averaged)
-            "tire_temps": tire_temps,
-
             # Gaps
             "gap_ahead": gap_ahead,
             "gap_behind": gap_behind,
@@ -277,6 +280,22 @@ class LMStudioClient:
             "incident_count": snapshot.incident_count,
             "track_temp_c": track_temp,
         }
+
+        # Tire temps (one value per corner). Omitted unless we have a live or
+        # estimated source -- iRacing freezes the raw channel between pit stops,
+        # so a stale cold value would make the model warn about cold tires
+        # forever. When an estimate is supplied, use it; otherwise average the
+        # snapshot L/M/R.
+        if include_tire_temps:
+            if tire_temps_override is not None:
+                data["tire_temps"] = {k: round(v) for k, v in tire_temps_override.items()}
+            else:
+                data["tire_temps"] = {
+                    "fl": round((snapshot.tire_temp_lf_l + snapshot.tire_temp_lf_m + snapshot.tire_temp_lf_r) / 3),
+                    "fr": round((snapshot.tire_temp_rf_l + snapshot.tire_temp_rf_m + snapshot.tire_temp_rf_r) / 3),
+                    "rl": round((snapshot.tire_temp_lr_l + snapshot.tire_temp_lr_m + snapshot.tire_temp_lr_r) / 3),
+                    "rr": round((snapshot.tire_temp_rr_l + snapshot.tire_temp_rr_m + snapshot.tire_temp_rr_r) / 3),
+                }
 
         return json.dumps(data)
 

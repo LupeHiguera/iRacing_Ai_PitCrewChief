@@ -29,6 +29,7 @@ class OverlayServer:
         port: int = 8080,
         model_label: str = "Race-Engineer FT (Llama 3.1 8B QLoRA)",
         fine_tuned: bool = True,
+        tire_temp_source: str = "live",
     ):
         self._host = host
         self._port = port
@@ -40,6 +41,11 @@ class OverlayServer:
         # Model identification (shown in overlay)
         self._model_label = model_label
         self._fine_tuned = fine_tuned
+
+        # How the displayed tire temps are sourced: "live" (sim streams them),
+        # "estimated" (reconstructed by the tire model -- iRacing), or "pit"
+        # (frozen last-pit measurement). The frontend labels them accordingly.
+        self._tire_temp_source = tire_temp_source
 
         # Session info (set once at start)
         self._track_name: str = "Unknown Track"
@@ -109,18 +115,30 @@ class OverlayServer:
         self,
         snapshot: TelemetrySnapshot,
         state: StrategyState,
+        tire_estimate=None,
     ) -> None:
         """Broadcast telemetry update to all connected clients."""
         if not self._connections:
             return
 
-        # Calculate average tire temp for each corner
-        tire_temps = {
-            "LF": (snapshot.tire_temp_lf_l + snapshot.tire_temp_lf_m + snapshot.tire_temp_lf_r) / 3,
-            "RF": (snapshot.tire_temp_rf_l + snapshot.tire_temp_rf_m + snapshot.tire_temp_rf_r) / 3,
-            "LR": (snapshot.tire_temp_lr_l + snapshot.tire_temp_lr_m + snapshot.tire_temp_lr_r) / 3,
-            "RR": (snapshot.tire_temp_rr_l + snapshot.tire_temp_rr_m + snapshot.tire_temp_rr_r) / 3,
-        }
+        # Tire temps/wear: use the estimate when sourced as "estimated",
+        # otherwise the snapshot (live or frozen last-pit values).
+        if self._tire_temp_source == "estimated" and tire_estimate is not None:
+            tire_temps = dict(tire_estimate.temps)
+            tire_wear = dict(tire_estimate.wear)
+        else:
+            tire_temps = {
+                "LF": (snapshot.tire_temp_lf_l + snapshot.tire_temp_lf_m + snapshot.tire_temp_lf_r) / 3,
+                "RF": (snapshot.tire_temp_rf_l + snapshot.tire_temp_rf_m + snapshot.tire_temp_rf_r) / 3,
+                "LR": (snapshot.tire_temp_lr_l + snapshot.tire_temp_lr_m + snapshot.tire_temp_lr_r) / 3,
+                "RR": (snapshot.tire_temp_rr_l + snapshot.tire_temp_rr_m + snapshot.tire_temp_rr_r) / 3,
+            }
+            tire_wear = {
+                "LF": snapshot.tire_wear_lf,
+                "RF": snapshot.tire_wear_rf,
+                "LR": snapshot.tire_wear_lr,
+                "RR": snapshot.tire_wear_rr,
+            }
 
         # Format session time remaining
         time_remain = snapshot.session_time_remain
@@ -160,10 +178,10 @@ class OverlayServer:
 
                 # Tires
                 "tire_wear": {
-                    "LF": round(snapshot.tire_wear_lf, 1),
-                    "RF": round(snapshot.tire_wear_rf, 1),
-                    "LR": round(snapshot.tire_wear_lr, 1),
-                    "RR": round(snapshot.tire_wear_rr, 1),
+                    "LF": round(tire_wear["LF"], 1),
+                    "RF": round(tire_wear["RF"], 1),
+                    "LR": round(tire_wear["LR"], 1),
+                    "RR": round(tire_wear["RR"], 1),
                 },
                 "tire_temps": {
                     "LF": round(tire_temps["LF"], 1),
@@ -171,6 +189,9 @@ class OverlayServer:
                     "LR": round(tire_temps["LR"], 1),
                     "RR": round(tire_temps["RR"], 1),
                 },
+                # "live" | "estimated" | "pit" -- how tire temps are sourced.
+                # On iRacing they're "estimated" (model) or "pit" (frozen).
+                "tire_temp_source": self._tire_temp_source,
                 "tire_pressures": {
                     "LF": round(snapshot.tire_pressure_lf, 1),
                     "RF": round(snapshot.tire_pressure_rf, 1),

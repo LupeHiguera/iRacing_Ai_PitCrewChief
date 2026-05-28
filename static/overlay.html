@@ -417,6 +417,31 @@
             color: #60a5fa;
         }
 
+        /* iRacing freezes tire temps between pit stops; dim + label when stale */
+        .tire-temp.stale {
+            color: rgba(255, 255, 255, 0.35);
+        }
+
+        .tire-stale-note {
+            display: none;
+            margin-left: 8px;
+            padding: 1px 6px;
+            border-radius: 8px;
+            background: rgba(249, 115, 22, 0.18);
+            color: #f59e0b;
+            font-size: 8px;
+            letter-spacing: 0.5px;
+            vertical-align: middle;
+        }
+        .tire-stale-note.show {
+            display: inline-block;
+        }
+        /* estimated temps: info-blue (dynamic + meaningful), not a staleness warning */
+        .tire-stale-note.estimated {
+            background: rgba(96, 165, 250, 0.18);
+            color: #60a5fa;
+        }
+
         .tire-wear-bar {
             height: 4px;
             background: rgba(255, 255, 255, 0.2);
@@ -838,7 +863,7 @@
 
     <!-- Bottom Left - Visuals -->
     <div class="panel visuals">
-        <div class="panel-title">Tires</div>
+        <div class="panel-title">Tires<span class="tire-stale-note" id="tireStaleNote">TEMPS: LAST PIT</span></div>
         <div class="tire-grid">
             <div class="tire-box" id="tireLF">
                 <div class="tire-corner">LF</div>
@@ -1016,14 +1041,25 @@
             document.getElementById('gapAhead').textContent = d.gap_ahead ? `+${d.gap_ahead.toFixed(2)}` : '+-.--';
             document.getElementById('gapBehind').textContent = d.gap_behind ? `-${d.gap_behind.toFixed(2)}` : '--.--';
 
-            // Tires
+            // Tires. iRacing has no live tire-temp channel, so temps are either
+            // "estimated" (tire model), "pit" (frozen last measurement), or
+            // "live" (a sim that streams them). Label + style accordingly.
+            const src = d.tire_temp_source || 'live'; // legacy payloads = live
+            const isPit = (src === 'pit');
+            const isEstimated = (src === 'estimated');
+            const note = document.getElementById('tireStaleNote');
+            note.classList.toggle('show', src !== 'live');
+            note.classList.toggle('estimated', isEstimated);
+            note.textContent = isEstimated ? 'ESTIMATED' : 'TEMPS: LAST PIT';
             ['LF', 'RF', 'LR', 'RR'].forEach(corner => {
                 const box = document.getElementById(`tire${corner}`);
                 const temp = d.tire_temps[corner];
                 const wear = d.tire_wear[corner];
                 const remaining = 100 - wear;
 
-                box.querySelector('.tire-temp').textContent = `${temp.toFixed(0)}°`;
+                const tempEl = box.querySelector('.tire-temp');
+                tempEl.textContent = `${temp.toFixed(0)}°`;
+                tempEl.classList.toggle('stale', isPit); // dim only when frozen
                 const fill = box.querySelector('.tire-wear-fill');
                 fill.style.width = `${remaining}%`;
                 fill.className = 'tire-wear-fill';

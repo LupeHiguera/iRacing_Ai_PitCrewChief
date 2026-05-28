@@ -23,6 +23,7 @@ def make_snapshot(
     tire_wear_rf: float = 35.0,
     tire_wear_lr: float = 25.0,
     tire_wear_rr: float = 28.0,
+
     session_time_remain: float = 1800.0,
     session_laps_remain: int = 20,
     last_lap_time: float = 90.0,
@@ -539,6 +540,45 @@ class TestFormatTelemetryPromptJSON:
         assert data["tire_temps"]["rl"] == 88.0
         # RR: (88+91+94)/3 = 91
         assert data["tire_temps"]["rr"] == 91.0
+
+    def test_json_omits_tire_temps_when_not_live(self):
+        """iRacing freezes tire temps between pit stops; with include_tire_temps
+        False the key is omitted so the model isn't fed a stale cold value."""
+        import json
+        client = LMStudioClient()
+        snapshot = make_snapshot()
+        state = make_strategy_state()
+
+        prompt = client.format_telemetry_prompt_json(
+            state, snapshot, car_name="BMW M4 GT3",
+            track_name="Autodromo Nazionale Monza", include_tire_temps=False,
+        )
+        data = json.loads(prompt)
+
+        assert "tire_temps" not in data
+        # Other fields are unaffected
+        assert "tire_wear" in data
+        assert data["car"] == "BMW M4 GT3"
+
+    def test_json_uses_tire_temp_and_wear_overrides(self):
+        """Estimated per-corner temps/wear are used verbatim (no L/M/R averaging)
+        when overrides are supplied (e.g. from the tire-state estimator)."""
+        import json
+        client = LMStudioClient()
+        snapshot = make_snapshot()
+        state = make_strategy_state()
+
+        prompt = client.format_telemetry_prompt_json(
+            state, snapshot, car_name="BMW M4 GT3",
+            track_name="Autodromo Nazionale Monza",
+            include_tire_temps=True,
+            tire_temps_override={"fl": 95, "fr": 110, "rl": 88, "rr": 90},
+            tire_wear_override={"fl": 5, "fr": 8, "rl": 3, "rr": 4},
+        )
+        data = json.loads(prompt)
+
+        assert data["tire_temps"] == {"fl": 95, "fr": 110, "rl": 88, "rr": 90}
+        assert data["tire_wear"] == {"fl": 5, "fr": 8, "rl": 3, "rr": 4}
 
     def test_json_includes_gaps(self):
         """Test JSON includes gap_ahead and gap_behind."""

@@ -54,8 +54,34 @@ class Config:
     gap_ahead_dirty_air_sec: float = 1.5  # "Dirty air" when following closer
     gap_ahead_clean_air_sec: float = 2.5  # "Clean air" when gap opens
 
-    # Tire temperature thresholds (Celsius)
-    tire_temp_cold_c: float = 40.0  # Below = cold warning (lowered to avoid SDK caching false positives)
+    # iRacing only updates tire temp AND wear telemetry when the pit crew
+    # measures the tires (at spawn and after each pit stop) -- the values are
+    # frozen during a stint. There is no live tire-temp channel in the SDK.
+    # With this False, live tire-temp callouts are disabled and tire_temps are
+    # omitted from the model prompt (otherwise the frozen cold spawn value makes
+    # the model report "tires cold" forever). Flip to True only on a sim that
+    # actually streams live tire temps.
+    tire_temp_telemetry_live: bool = False
+
+    # Since iRacing has no live tire-temp channel, estimate per-corner tire
+    # temps/wear from live load telemetry (G, throttle, brake, speed), anchored
+    # to the real values measured at each pit stop. Estimated values feed the
+    # model prompt and the tire events, and are labeled "estimated" in the
+    # overlay. See src/tire_model.py.
+    tire_temp_estimation_enabled: bool = True
+
+    # Tire-state estimator tunables (dimensionless gains unless noted).
+    # Tuned so a cold tire reaches the ~80-100C window after 1-2 pushing laps,
+    # fronts spike under braking, the outer pair runs hotter in long corners,
+    # and long straights cool toward the live track/air ambient.
+    tire_est_heat_gain: float = 0.024  # heat-in scale (load x speed)
+    tire_est_cool_rate: float = 0.012  # cooling scale toward ambient (x airflow)
+    tire_est_ambient_offset_c: float = 8.0  # resting tire temp above track temp
+    tire_est_wear_gain: float = 0.008  # wear %/tick scale (load x slip), x tire_deg; ~0.4%/lap GT3
+    tire_est_max_temp_c: float = 140.0  # clamp ceiling
+
+    # Tire temperature thresholds (Celsius) - used for live OR estimated temps
+    tire_temp_cold_c: float = 40.0  # Below = cold warning
     tire_temp_optimal_low_c: float = 80.0  # Optimal range start
     tire_temp_optimal_high_c: float = 100.0  # Optimal range end
     tire_temp_hot_c: float = 110.0  # Above = overheating
